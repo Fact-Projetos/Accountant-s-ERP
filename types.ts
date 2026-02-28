@@ -39,6 +39,8 @@ export interface Client {
 
   // Client Date
   clientDate?: string; // Data de entrada do cliente
+  monthlyFee?: number; // Valor da mensalidade
+  dueDay?: number; // Dia de vencimento
 
   // Simples Nacional Access
   simplesNacionalCnpj?: string;

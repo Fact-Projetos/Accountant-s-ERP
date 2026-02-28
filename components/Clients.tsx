@@ -104,7 +104,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .order('name');
+        .order('code');
 
       if (error) throw error;
 
@@ -136,6 +136,8 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
           userLogin: item.user_login || '',
           userPassword: item.user_password || '',
           clientDate: item.client_date || '',
+          monthlyFee: item.monthly_fee || 0,
+          dueDay: item.due_day || 10,
           simplesNacionalCnpj: item.simples_nacional_cnpj || '',
           simplesNacionalCpf: item.simples_nacional_cpf || '',
           simplesNacionalAccess: item.simples_nacional_access || '',
@@ -154,13 +156,17 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
     }
   };
 
-  // Filter Logic
+  // Filter Logic + Numeric Sort by Code
   const filteredClients = clients.filter(c => {
     const search = searchTerm.toLowerCase();
     const nameMatch = c.name?.toLowerCase().includes(search) ?? false;
     const cnpjMatch = c.cnpj?.includes(search) ?? false;
     const codeMatch = c.code?.toLowerCase().includes(search) ?? false;
     return nameMatch || cnpjMatch || codeMatch;
+  }).sort((a, b) => {
+    const codeA = parseInt(a.code || '0', 10) || 0;
+    const codeB = parseInt(b.code || '0', 10) || 0;
+    return codeA - codeB;
   });
 
   const togglePasswordVisibility = (id: string) => {
@@ -294,6 +300,8 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
         user_login: formData.userLogin,
         user_password: formData.userPassword,
         client_date: formData.clientDate || null,
+        monthly_fee: formData.monthlyFee || 0,
+        due_day: formData.dueDay || 10,
         simples_nacional_cnpj: formData.simplesNacionalCnpj,
         simples_nacional_cpf: formData.simplesNacionalCpf,
         simples_nacional_access: formData.simplesNacionalAccess,
@@ -477,6 +485,26 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                 value={formData.clientDate || ''}
                 onChange={handleInputChange}
                 className="col-span-3 border-r-0"
+              />
+            </div>
+            <div className="grid grid-cols-12 border-t border-slate-200">
+              <InputField
+                label="R$ Mensalidade"
+                name="monthlyFee"
+                type="number"
+                value={formData.monthlyFee || ''}
+                onChange={handleInputChange}
+                className="col-span-6"
+                placeholder="0.00"
+              />
+              <InputField
+                label="Dia Vencimento"
+                name="dueDay"
+                type="number"
+                value={formData.dueDay || ''}
+                onChange={handleInputChange}
+                className="col-span-6 border-r-0"
+                placeholder="10"
               />
             </div>
           </div>
@@ -866,14 +894,14 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                         <td className="px-2 py-1.5 border-r border-slate-100">
                           <div className="flex items-center gap-1.5">
                             <div className={`w-2 h-2 rounded-full shrink-0 ${client.status === 'Ativo' ? 'bg-green-500' :
-                                client.status === 'Com Manutenção' ? 'bg-amber-500' :
-                                  client.status === 'Sem Manutenção' ? 'bg-slate-400' :
-                                    'bg-red-400'
+                              client.status === 'Com Manutenção' ? 'bg-amber-500' :
+                                client.status === 'Sem Manutenção' ? 'bg-slate-400' :
+                                  'bg-red-400'
                               }`} />
                             <span className={`text-[11px] font-bold ${client.status === 'Ativo' ? 'text-green-700' :
-                                client.status === 'Com Manutenção' ? 'text-amber-600' :
-                                  client.status === 'Sem Manutenção' ? 'text-slate-500' :
-                                    'text-red-500'
+                              client.status === 'Com Manutenção' ? 'text-amber-600' :
+                                client.status === 'Sem Manutenção' ? 'text-slate-500' :
+                                  'text-red-500'
                               }`}>
                               {client.status}
                             </span>
