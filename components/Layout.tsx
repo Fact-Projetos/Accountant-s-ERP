@@ -29,6 +29,7 @@ const Layout: React.FC<LayoutProps> = ({ currentView, onNavigate, onLogout, user
     { id: ViewState.TAX_ASSESSMENT, label: 'Controle de Apurações', icon: <ClipboardCheck className="w-5 h-5" /> },
     { id: ViewState.LINKS_NFSE, label: 'Automação NFS-e', icon: <Bot className="w-5 h-5" /> },
     { id: ViewState.DOCUMENTS, label: 'Documentos', icon: <FileText className="w-5 h-5" /> },
+    { id: ViewState.ACC_FINANCIAL, label: 'Financeiro', icon: <Wallet className="w-5 h-5" /> },
   ];
 
   const clientMenu = [

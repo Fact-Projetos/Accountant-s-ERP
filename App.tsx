@@ -17,6 +17,7 @@ import NfeActions from './components/client/NfeActions';
 import FiscalMatrix from './components/client/FiscalMatrix';
 import Documents from './components/client/Documents';
 import Financial from './components/client/Financial';
+import AccountantFinancial from './components/AccountantFinancial';
 
 import { ViewState } from './types';
 
@@ -194,6 +195,8 @@ const App: React.FC = () => {
           companyIdOverride={impersonatedCompanyId}
           roleOverride={impersonatedCompanyId ? 'Cliente' : undefined}
         />;
+      case ViewState.ACC_FINANCIAL:
+        return <AccountantFinancial />;
 
       // Client Views
       case ViewState.MY_COMPANY:
