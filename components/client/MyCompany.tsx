@@ -27,11 +27,11 @@ const InfoRow = ({ icon: Icon, label, value, highlight, warning }: {
 
 const MyCompany: React.FC<MyCompanyProps> = ({ companyId }) => {
   const [company, setCompany] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!companyId);
 
   useEffect(() => {
     const fetchCompanyData = async () => {
-      if (!companyId) return;
+      if (!companyId) { setIsLoading(false); return; }
       setIsLoading(true);
       try {
         const { data, error } = await supabase
@@ -95,6 +95,16 @@ const MyCompany: React.FC<MyCompanyProps> = ({ companyId }) => {
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="w-8 h-8 animate-spin text-slate-300" />
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Carregando...</span>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && !company && (
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <Building2 className="w-12 h-12 text-slate-200" />
+            <p className="text-sm font-bold text-slate-400">Nenhuma empresa selecionada.</p>
+            <p className="text-xs text-slate-300">Selecione uma empresa na aba Clientes para visualizar os dados.</p>
           </div>
         </div>
       )}
