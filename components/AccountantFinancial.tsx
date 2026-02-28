@@ -88,11 +88,14 @@ const AccountantFinancial: React.FC = () => {
 
     // ─── Fetch ───────────────────────────────────────────────────
     useEffect(() => { fetchCompanies(); fetchServiceTypes(); }, []);
-    useEffect(() => { if (companies.length > 0) fetchAllRecords(); }, [selectedYear, companies]);
+    useEffect(() => { fetchAllRecords(); }, [selectedYear, companies]);
 
     const fetchCompanies = async () => {
-        const { data } = await supabase.from('companies').select('id, code, name, status, client_date').order('code');
-        setCompanies(data || []);
+        try {
+            const { data, error } = await supabase.from('companies').select('id, code, name, status, client_date').order('code');
+            if (error) { console.error('Error fetching companies:', error); }
+            setCompanies(data || []);
+        } catch (err) { console.error('Error:', err); setCompanies([]); }
     };
 
     const fetchServiceTypes = async () => {
@@ -102,9 +105,13 @@ const AccountantFinancial: React.FC = () => {
 
     const fetchAllRecords = async () => {
         setIsLoading(true);
-        const { data } = await supabase.from('accountant_financial').select('*').eq('year', selectedYear);
-        setRecords(data || []);
-        setIsLoading(false);
+        try {
+            if (companies.length === 0) { setRecords([]); setIsLoading(false); return; }
+            const { data, error } = await supabase.from('accountant_financial').select('*').eq('year', selectedYear);
+            if (error) console.error('Error fetching records:', error);
+            setRecords(data || []);
+        } catch (err) { console.error('Error:', err); setRecords([]); }
+        finally { setIsLoading(false); }
     };
 
     const fetchClientDetail = async (company: Company) => {
