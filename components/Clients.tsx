@@ -138,6 +138,8 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
           clientDate: item.client_date || '',
           monthlyFee: item.monthly_fee || 0,
           dueDay: item.due_day || 10,
+          certificateDate: item.certificate_date || '',
+          certificateExpiry: item.certificate_expiry || '',
           simplesNacionalCnpj: item.simples_nacional_cnpj || '',
           simplesNacionalCpf: item.simples_nacional_cpf || '',
           simplesNacionalAccess: item.simples_nacional_access || '',
@@ -296,6 +298,8 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
         city_hall_login: formData.cityHallLogin,
         city_hall_password: formData.cityHallPassword,
         certificate_password: formData.certificatePassword,
+        certificate_date: formData.certificateDate || null,
+        certificate_expiry: formData.certificateExpiry || null,
         last_nfe: formData.lastNfe,
         user_login: formData.userLogin,
         user_password: formData.userPassword,
@@ -681,7 +685,23 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                 type="password"
                 value={formData.certificatePassword || ''}
                 onChange={handleInputChange}
-                className="col-span-6 border-r-0"
+                className="col-span-2"
+              />
+              <InputField
+                label="Data Emissão Cert."
+                name="certificateDate"
+                type="date"
+                value={formData.certificateDate || ''}
+                onChange={handleInputChange}
+                className="col-span-2"
+              />
+              <InputField
+                label="Vencimento Cert."
+                name="certificateExpiry"
+                type="date"
+                value={formData.certificateExpiry || ''}
+                onChange={handleInputChange}
+                className="col-span-2 border-r-0"
               />
             </div>
           </div>

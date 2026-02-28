@@ -36,6 +36,8 @@ export interface Client {
   // Certificate
   certificateFile?: string | File;
   certificatePassword?: string;
+  certificateDate?: string; // Data de emissão do certificado
+  certificateExpiry?: string; // Vencimento do certificado
 
   // Client Date
   clientDate?: string; // Data de entrada do cliente
