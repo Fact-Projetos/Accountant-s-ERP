@@ -89,7 +89,15 @@ const AccountantFinancial: React.FC = () => {
     const [newService, setNewService] = useState<{ typeId: string; name: string; value: number; notes: string }>({ typeId: '', name: '', value: 0, notes: '' });
 
     // ─── Fetch ───────────────────────────────────────────────────
-    useEffect(() => { fetchCompanies(); fetchServiceTypes(); }, []);
+    useEffect(() => {
+        fetchCompanies();
+        fetchServiceTypes();
+        // Safety timeout: prevent loading from getting stuck
+        const timeout = setTimeout(() => {
+            setIsLoading(false);
+        }, 10000);
+        return () => clearTimeout(timeout);
+    }, []);
     useEffect(() => { fetchAllRecords(); }, [selectedYear, companies]);
 
     const fetchCompanies = async () => {

@@ -76,7 +76,14 @@ const NfsLinks: React.FC<{ initialData?: any[], onDataUpdate?: (data: any[]) => 
     }
   };
 
-  useEffect(() => { fetchAutomations(); }, []);
+  useEffect(() => {
+    fetchAutomations();
+    // Safety timeout: prevent loading from getting stuck
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 10000);
+    return () => clearTimeout(timeout);
+  }, []);
 
   // ─── Handlers ──────────────────────────────────────────────
   const handleNew = () => {

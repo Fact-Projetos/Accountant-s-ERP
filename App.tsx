@@ -20,6 +20,7 @@ import Financial from './components/client/Financial';
 import AccountantFinancial from './components/AccountantFinancial';
 
 import { ViewState } from './types';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -233,7 +234,9 @@ const App: React.FC = () => {
       isImpersonating={!!impersonatedCompanyId}
       onExitImpersonation={handleExitImpersonation}
     >
-      {renderView()}
+      <ErrorBoundary>
+        {renderView()}
+      </ErrorBoundary>
     </Layout>
   );
 };

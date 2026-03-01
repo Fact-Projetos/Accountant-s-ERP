@@ -94,6 +94,12 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
     if (clients.length === 0) {
       fetchClients();
     }
+    // Safety timeout: prevent loading from getting stuck
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }, 10000);
+    return () => clearTimeout(timeout);
   }, []);
 
   const fetchClients = async (isBackground = false) => {

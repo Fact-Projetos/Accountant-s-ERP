@@ -123,6 +123,7 @@ const Sales: React.FC<SalesProps> = ({ companyId }) => {
 
   const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
   const [searchTerm, setSearchTerm] = useState('');
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showDanfe, setShowDanfe] = useState(false);
@@ -1211,7 +1212,6 @@ const Sales: React.FC<SalesProps> = ({ companyId }) => {
   }
 
   // --- LIST VIEW ---
-  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in h-[calc(100vh-120px)]">

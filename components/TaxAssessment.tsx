@@ -34,7 +34,7 @@ const YEARS = ['2026', '2025', '2024', '2023'];
 const TaxAssessment: React.FC = () => {
     const [filterClient, setFilterClient] = useState('');
     const [filterMonth, setFilterMonth] = useState('');
-    const [filterYear, setFilterYear] = useState('2024');
+    const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
     const [filterMovement, setFilterMovement] = useState('');
     const [filterAssessment, setFilterAssessment] = useState('');
     const [filterSent, setFilterSent] = useState('');
@@ -48,6 +48,12 @@ const TaxAssessment: React.FC = () => {
 
     useEffect(() => {
         fetchCompanies();
+        // Safety timeout: prevent loading from getting stuck
+        const timeout = setTimeout(() => {
+            setIsLoading(false);
+            setIsRefreshing(false);
+        }, 10000);
+        return () => clearTimeout(timeout);
     }, []);
 
     useEffect(() => {

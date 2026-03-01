@@ -91,7 +91,7 @@ const Movements: React.FC<{
 }> = ({ initialClients, onClientsUpdate, initialCityLinks, onCityLinksUpdate }) => {
   const [filterClient, setFilterClient] = useState<string>('');
   const [filterMonth, setFilterMonth] = useState<string>('');
-  const [filterYear, setFilterYear] = useState<string>('2024');
+  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
   const [filterCity, setFilterCity] = useState<string>('');
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
@@ -134,6 +134,12 @@ const Movements: React.FC<{
   useEffect(() => {
     if (clients.length === 0) fetchClients();
     if (cityLinks.length === 0) fetchCityLinks();
+    // Safety timeout: if loading takes more than 10s, force stop
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }, 10000);
+    return () => clearTimeout(timeout);
   }, []);
 
   useEffect(() => {
