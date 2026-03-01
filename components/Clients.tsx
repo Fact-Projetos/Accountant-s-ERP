@@ -138,6 +138,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
           cityHallLogin: item.city_hall_login || '',
           cityHallPassword: item.city_hall_password || '',
           certificatePassword: item.certificate_password || '',
+          certificateBase64: item.certificate_base64 || '',
           lastNfe: item.last_nfe || '',
           userLogin: item.user_login || '',
           userPassword: item.user_password || '',
@@ -304,6 +305,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
         city_hall_login: formData.cityHallLogin,
         city_hall_password: formData.cityHallPassword,
         certificate_password: formData.certificatePassword,
+        certificate_base64: formData.certificateBase64 || null,
         certificate_date: formData.certificateDate || null,
         certificate_expiry: formData.certificateExpiry || null,
         last_nfe: formData.lastNfe,
@@ -681,8 +683,18 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                 <label className="text-[7px] text-slate-400 uppercase font-bold mb-0.5">Certificado Digital (.pfx/.p12)</label>
                 <label className="cursor-pointer flex items-center gap-2 text-[10px] font-bold text-slate-600 hover:text-slate-900 transition-colors">
                   <Upload className="w-3 h-3 text-slate-400" />
-                  {formData.certificateFile ? 'Arquivo Selecionado' : 'Importar Arquivo'}
-                  <input type="file" className="hidden" onChange={(e) => setFormData(prev => ({ ...prev, certificateFile: e.target.files?.[0] }))} />
+                  {formData.certificateFile ? '✅ Arquivo Selecionado' : 'Importar Arquivo'}
+                  <input type="file" className="hidden" accept=".pfx,.p12" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        const base64 = (ev.target?.result as string).split(',')[1];
+                        setFormData(prev => ({ ...prev, certificateFile: file, certificateBase64: base64 }));
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }} />
                 </label>
               </div>
               <InputField

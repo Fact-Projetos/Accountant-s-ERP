@@ -249,32 +249,145 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
     entryDate: new Date().toISOString().split('T')[0], items: [], freightValue: 0, totalAmount: 0, additionalInfo: ''
   });
 
-  const [manifestInvoices] = useState<any[]>([
-    {
-      key: '35250261565780000100550010000045671000045671',
-      issuer: 'Atacado de Eletrônicos Brasil S/A',
-      document: '12.345.678/0001-90',
-      date: '08/02/2026',
-      value: 12500.00,
-      status: 'Autorizada'
-    },
-    {
-      key: '35250212345678000195550010000098761000098761',
-      issuer: 'Conecta Suprimentos de TI',
-      document: '98.765.432/0001-21',
-      date: '07/02/2026',
-      value: 3420.50,
-      status: 'Autorizada'
-    },
-    {
-      key: '35250299999999000100550010000012341000012341',
-      issuer: 'Logística Expressa Ltda',
-      document: '11.222.333/0001-44',
-      date: '05/02/2026',
-      value: 890.00,
-      status: 'Autorizada'
+  const [manifestInvoices, setManifestInvoices] = useState<any[]>([]);
+  const [manifestError, setManifestError] = useState<string>('');
+
+  // Fetch manifest invoices from database (cached results) on mount
+  useEffect(() => {
+    if (companyId) {
+      (async () => {
+        const { data } = await supabase
+          .from('manifest_invoices')
+          .select('*')
+          .eq('company_id', companyId)
+          .order('created_at', { ascending: false });
+
+        if (data && data.length > 0) {
+          setManifestInvoices(data.map((inv: any) => ({
+            key: inv.chave_nfe || '',
+            issuer: inv.nome_emitente || 'Desconhecido',
+            document: inv.cnpj_emitente || '',
+            date: inv.data_emissao ? new Date(inv.data_emissao).toLocaleDateString('pt-BR') : '',
+            value: parseFloat(inv.valor_nfe) || 0,
+            status: inv.sit_nfe === '1' ? 'Autorizada' : inv.sit_nfe === '3' ? 'Cancelada' : 'Disponível',
+            nsu: inv.nsu,
+            id: inv.id
+          })));
+        }
+      })();
     }
-  ]);
+  }, [companyId]);
+
+  // Fetch manifest invoices from SEFAZ via automation server
+  const fetchManifestFromSefaz = async () => {
+    if (!companyId) return;
+    setLoadingManifest(true);
+    setManifestError('');
+
+    try {
+      // 1. Get company certificate and data
+      const { data: company, error: compError } = await supabase
+        .from('companies')
+        .select('cnpj, state, certificate_base64, certificate_password, last_nsu')
+        .eq('id', companyId)
+        .single();
+
+      if (compError || !company) throw new Error('Empresa não encontrada.');
+
+      if (!company.certificate_base64) {
+        throw new Error('Certificado digital não cadastrado. Vá em Cadastro de Clientes e faça o upload do arquivo .pfx.');
+      }
+      if (!company.certificate_password) {
+        throw new Error('Senha do certificado não cadastrada.');
+      }
+
+      // 2. Call automation server
+      const response = await fetch('http://localhost:3099/manifest/consulta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          certificateBase64: company.certificate_base64,
+          certificatePassword: company.certificate_password,
+          cnpj: company.cnpj,
+          uf: company.state || 'RJ',
+          ultNSU: company.last_nsu || '0'
+        })
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || 'Erro na comunicação com SEFAZ');
+      }
+
+      console.log(`[Manifest] SEFAZ: ${result.cStat} - ${result.xMotivo}`);
+      console.log(`[Manifest] Notas: ${result.notas?.length || 0}, ultNSU: ${result.ultNSU}`);
+
+      // 3. Save results to manifest_invoices table
+      if (result.notas && result.notas.length > 0) {
+        for (const nota of result.notas) {
+          await supabase.from('manifest_invoices').upsert({
+            company_id: companyId,
+            nsu: nota.nsu,
+            chave_nfe: nota.chaveNfe,
+            cnpj_emitente: nota.cnpjEmitente,
+            nome_emitente: nota.nomeEmitente,
+            ie_emitente: nota.ieEmitente,
+            data_emissao: nota.dataEmissao ? nota.dataEmissao.substring(0, 10) : null,
+            valor_nfe: nota.valorNfe,
+            sit_nfe: nota.sitNfe,
+            tipo_operacao: nota.tipoOperacao,
+            xml_resumo: nota.xmlResumo,
+            status: 'Disponível'
+          }, { onConflict: 'company_id,chave_nfe' });
+        }
+      }
+
+      // 4. Update last_nsu
+      if (result.ultNSU) {
+        await supabase.from('companies').update({ last_nsu: result.ultNSU }).eq('id', companyId);
+      }
+
+      // 5. Reload from database  
+      const { data: updatedInvoices } = await supabase
+        .from('manifest_invoices')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
+
+      if (updatedInvoices) {
+        setManifestInvoices(updatedInvoices.map((inv: any) => ({
+          key: inv.chave_nfe || '',
+          issuer: inv.nome_emitente || 'Desconhecido',
+          document: inv.cnpj_emitente || '',
+          date: inv.data_emissao ? new Date(inv.data_emissao).toLocaleDateString('pt-BR') : '',
+          value: parseFloat(inv.valor_nfe) || 0,
+          status: inv.sit_nfe === '1' ? 'Autorizada' : inv.sit_nfe === '3' ? 'Cancelada' : 'Disponível',
+          nsu: inv.nsu,
+          id: inv.id
+        })));
+      }
+
+      // Show result message
+      if (result.notas && result.notas.length > 0) {
+        alert(`✅ ${result.notas.length} nota(s) encontrada(s) na SEFAZ!\n\ncStat: ${result.cStat}\n${result.xMotivo}`);
+      } else {
+        alert(`ℹ️ Nenhuma nota nova encontrada.\n\ncStat: ${result.cStat}\n${result.xMotivo}`);
+      }
+
+    } catch (err: any) {
+      console.error('[Manifest] Erro:', err);
+      setManifestError(err.message);
+
+      if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        alert('❌ Servidor de automação não está rodando.\n\nInicie com: cd automation-server && node server.js');
+      } else {
+        alert(`❌ Erro: ${err.message}`);
+      }
+    } finally {
+      setLoadingManifest(false);
+    }
+  };
 
   const [loadingManifest, setLoadingManifest] = useState(false);
 
@@ -779,11 +892,9 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
             </div>
           </div>
           <button
-            onClick={() => {
-              setLoadingManifest(true);
-              setTimeout(() => setLoadingManifest(false), 1500);
-            }}
-            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2 rounded-xl text-xs font-bold transition-all"
+            onClick={fetchManifestFromSefaz}
+            disabled={loadingManifest}
+            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
           >
             {loadingManifest ? <Loader2 className="w-4 h-4 animate-spin" /> : <CloudDownload className="w-4 h-4" />}
             Atualizar Lista

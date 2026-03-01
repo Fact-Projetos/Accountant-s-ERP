@@ -329,10 +329,110 @@ app.get('/status', (req, res) => {
     });
 });
 
+// ═══════════════════════════════════════════════════════════════
+// MANIFESTAÇÃO DO DESTINATÁRIO - Busca NFe via SEFAZ
+// ═══════════════════════════════════════════════════════════════
+
+const { consultarDistribuicaoDFe, readCertificate } = require('./manifest-service');
+
+// ─── Endpoint: Consultar notas do SEFAZ ──────────────────────────
+app.post('/manifest/consulta', async (req, res) => {
+    try {
+        const { certificateBase64, certificatePassword, cnpj, uf, ultNSU, chNFe } = req.body;
+
+        if (!certificateBase64 || !certificatePassword || !cnpj) {
+            return res.status(400).json({
+                success: false,
+                error: 'Parâmetros obrigatórios: certificateBase64, certificatePassword, cnpj'
+            });
+        }
+
+        console.log(`\n[Manifest] ═══ Consulta NFe ═══`);
+        console.log(`[Manifest] CNPJ: ${cnpj}`);
+        console.log(`[Manifest] UF: ${uf || 'RJ'}`);
+        console.log(`[Manifest] ultNSU: ${ultNSU || '0'}`);
+
+        const result = await consultarDistribuicaoDFe(
+            certificateBase64,
+            certificatePassword,
+            cnpj,
+            uf || 'RJ',
+            ultNSU || '0',
+            chNFe || null
+        );
+
+        res.json({
+            success: true,
+            cStat: result.cStat,
+            xMotivo: result.xMotivo,
+            ultNSU: result.ultNSU,
+            maxNSU: result.maxNSU,
+            hasMore: result.hasMore,
+            notas: result.notas.filter(n => n.tipo === 'resumo').map(n => ({
+                nsu: n.nsu,
+                chaveNfe: n.chNFe,
+                cnpjEmitente: n.cnpjEmitente,
+                nomeEmitente: n.nomeEmitente,
+                ieEmitente: n.ieEmitente,
+                dataEmissao: n.dataEmissao,
+                valorNfe: n.valorNFe,
+                sitNfe: n.sitNFe,
+                tipoOperacao: n.tipoOperacao,
+                xmlResumo: n.xmlResumo
+            })),
+            eventos: result.notas.filter(n => n.tipo === 'evento')
+        });
+    } catch (err) {
+        console.error('[Manifest] Erro:', err.message);
+        res.json({ success: false, error: err.message });
+    }
+});
+
+// ─── Endpoint: Validar certificado ───────────────────────────────
+app.post('/manifest/certificado/validar', async (req, res) => {
+    try {
+        const { certificateBase64, certificatePassword } = req.body;
+
+        if (!certificateBase64 || !certificatePassword) {
+            return res.status(400).json({
+                success: false,
+                error: 'Informe certificateBase64 e certificatePassword'
+            });
+        }
+
+        const cert = readCertificate(certificateBase64, certificatePassword);
+
+        res.json({
+            success: true,
+            certificado: {
+                titular: cert.subject.CN || cert.subject.O || 'N/A',
+                cnpj: cert.subject['2.16.76.1.3.3'] || '',
+                emissao: cert.notBefore,
+                vencimento: cert.notAfter,
+                expirado: new Date(cert.notAfter) < new Date(),
+                serialNumber: cert.serialNumber
+            }
+        });
+    } catch (err) {
+        console.error('[Manifest] Erro ao validar certificado:', err.message);
+        res.json({ success: false, error: err.message });
+    }
+});
+
+// ─── Endpoint: Status do serviço de manifestação ─────────────────
+app.get('/manifest/status', (req, res) => {
+    res.json({
+        available: true,
+        service: 'Manifestação do Destinatário',
+        version: '1.0'
+    });
+});
+
 // ─── Iniciar servidor ────────────────────────────────────────────
 app.listen(PORT, () => {
     console.log(`\n${'═'.repeat(50)}`);
     console.log(`  Fact ERP - Servidor de Automacao NFS-e`);
+    console.log(`  + Manifestação do Destinatário (SEFAZ)`);
     console.log(`  Rodando em: http://localhost:${PORT}`);
     console.log(`  Status: http://localhost:${PORT}/status`);
     console.log(`${'═'.repeat(50)}\n`);
