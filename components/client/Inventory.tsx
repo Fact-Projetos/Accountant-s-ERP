@@ -3,7 +3,7 @@ import {
   Package, Search, Upload, CloudDownload, Plus, Edit, Trash2,
   ArrowLeft, Save, Calculator, AlertCircle, FileSignature,
   CheckSquare, Square, Check, MoreVertical, Loader2, Truck, CreditCard,
-  FileText, User, MapPin, ShoppingBag, FileCheck, CheckCircle2, ChevronRight, Receipt, MoreHorizontal, X
+  FileText, User, MapPin, ShoppingBag, FileCheck, CheckCircle2, ChevronRight, ChevronDown, Receipt, MoreHorizontal, X
 } from 'lucide-react';
 import { supabase } from '../../services/supabase';
 
@@ -390,6 +390,82 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
   };
 
   const [loadingManifest, setLoadingManifest] = useState(false);
+  const [manifestActionMenu, setManifestActionMenu] = useState<string | null>(null);
+  const [manifestActionLoading, setManifestActionLoading] = useState(false);
+
+  // Handle manifest actions (Ciência, Confirmação, etc.)
+  const handleManifestAction = async (chNFe: string, action: string) => {
+    if (!companyId) return;
+    setManifestActionLoading(true);
+    setManifestActionMenu(null);
+
+    try {
+      const { data: company } = await supabase
+        .from('companies')
+        .select('cnpj, state, certificate_base64, certificate_password')
+        .eq('id', companyId)
+        .single();
+      if (!company?.certificate_base64) { alert('Certificado não cadastrado'); return; }
+
+      const eventMap: Record<string, string> = { 'ciencia': '210210', 'confirmacao': '210200', 'desconhecimento': '210220', 'nao_realizada': '210240' };
+
+      if (action === 'download') {
+        const resp = await fetch('http://localhost:3099/manifest/download-xml', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            certificateBase64: company.certificate_base64,
+            certificatePassword: company.certificate_password,
+            cnpj: company.cnpj, uf: company.state || 'SP', chNFe
+          })
+        });
+        const result = await resp.json();
+        if (result.success && result.xmlCompleto) {
+          await supabase.from('manifest_invoices')
+            .update({ xml_completo: result.xmlCompleto, status: 'Importada' })
+            .eq('company_id', companyId).eq('chave_nfe', chNFe);
+          alert('✅ XML baixado com sucesso!');
+        } else {
+          alert(`⚠️ ${result.message || result.xMotivo || 'XML não disponível'}`);
+        }
+      } else if (eventMap[action]) {
+        let justificativa = '';
+        if (action === 'nao_realizada') {
+          justificativa = window.prompt('Justificativa (mín. 15 caracteres):') || '';
+          if (justificativa.length < 15) { alert('Justificativa deve ter pelo menos 15 caracteres'); return; }
+        }
+        const resp = await fetch('http://localhost:3099/manifest/evento', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            certificateBase64: company.certificate_base64,
+            certificatePassword: company.certificate_password,
+            cnpj: company.cnpj, chNFe,
+            tipoEvento: eventMap[action], justificativa
+          })
+        });
+        const result = await resp.json();
+        if (result.success) {
+          const statusMap: Record<string, string> = { 'ciencia': 'Ciência', 'confirmacao': 'Confirmada', 'desconhecimento': 'Desconhecida', 'nao_realizada': 'Não Realizada' };
+          await supabase.from('manifest_invoices')
+            .update({ status: statusMap[action] || action, manifested_at: new Date().toISOString() })
+            .eq('company_id', companyId).eq('chave_nfe', chNFe);
+          alert(`✅ Evento registrado!\n${result.cStat} - ${result.xMotivo}`);
+          fetchManifestFromSefaz();
+        } else {
+          alert(`❌ ${result.cStat} - ${result.xMotivo}`);
+        }
+      }
+    } catch (e: any) {
+      if (e.message?.includes('Failed to fetch')) {
+        alert('❌ Servidor de automação não está rodando.\nInicie com: cd automation-server && node server.js');
+      } else {
+        alert('❌ Erro: ' + e.message);
+      }
+    } finally {
+      setManifestActionLoading(false);
+    }
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -938,84 +1014,45 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <div className="flex items-center gap-1 justify-center">
+                    <div className="relative flex items-center gap-1 justify-center">
                       <button
-                        onClick={async () => {
-                          if (!companyId) return;
-                          const { data: company } = await supabase
-                            .from('companies')
-                            .select('cnpj, state, certificate_base64, certificate_password')
-                            .eq('id', companyId)
-                            .single();
-                          if (!company?.certificate_base64) { alert('Certificado não cadastrado'); return; }
-
-                          const action = window.prompt(
-                            'Escolha a ação:\n1 = Ciência da Operação\n2 = Confirmação\n3 = Desconhecimento\n4 = Operação não Realizada\n5 = Download XML',
-                            '1'
-                          );
-                          if (!action) return;
-
-                          const eventMap: Record<string, string> = { '1': '210210', '2': '210200', '3': '210220', '4': '210240' };
-
-                          if (action === '5') {
-                            // Download XML
-                            try {
-                              const resp = await fetch('http://localhost:3099/manifest/download-xml', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  certificateBase64: company.certificate_base64,
-                                  certificatePassword: company.certificate_password,
-                                  cnpj: company.cnpj, uf: company.state || 'SP', chNFe: inv.key
-                                })
-                              });
-                              const result = await resp.json();
-                              if (result.success && result.xmlCompleto) {
-                                // Save to manifest_invoices
-                                await supabase.from('manifest_invoices')
-                                  .update({ xml_completo: result.xmlCompleto, status: 'Importada' })
-                                  .eq('company_id', companyId)
-                                  .eq('chave_nfe', inv.key);
-                                alert('✅ XML baixado com sucesso! Nota pronta para importação no estoque.');
-                              } else {
-                                alert(`⚠️ ${result.message || result.xMotivo || 'XML não disponível'}`);
-                              }
-                            } catch (e: any) { alert('❌ Erro: ' + e.message); }
-                          } else if (eventMap[action]) {
-                            let justificativa = '';
-                            if (action === '4') {
-                              justificativa = window.prompt('Justificativa (mín. 15 caracteres):') || '';
-                              if (justificativa.length < 15) { alert('Justificativa deve ter pelo menos 15 caracteres'); return; }
-                            }
-                            try {
-                              const resp = await fetch('http://localhost:3099/manifest/evento', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  certificateBase64: company.certificate_base64,
-                                  certificatePassword: company.certificate_password,
-                                  cnpj: company.cnpj, chNFe: inv.key,
-                                  tipoEvento: eventMap[action], justificativa
-                                })
-                              });
-                              const result = await resp.json();
-                              if (result.success) {
-                                await supabase.from('manifest_invoices')
-                                  .update({ status: action === '1' ? 'Ciência' : action === '2' ? 'Confirmada' : action === '3' ? 'Desconhecida' : 'Não Realizada', manifested_at: new Date().toISOString() })
-                                  .eq('company_id', companyId)
-                                  .eq('chave_nfe', inv.key);
-                                alert(`✅ Evento registrado!\n${result.cStat} - ${result.xMotivo}`);
-                                fetchManifestFromSefaz();
-                              } else {
-                                alert(`❌ ${result.cStat} - ${result.xMotivo}`);
-                              }
-                            } catch (e: any) { alert('❌ Erro: ' + e.message); }
-                          }
-                        }}
-                        className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm"
+                        onClick={() => setManifestActionMenu(manifestActionMenu === inv.key ? null : inv.key)}
+                        disabled={manifestActionLoading}
+                        className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm disabled:opacity-50 flex items-center gap-1"
                       >
+                        {manifestActionLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronDown className="w-3 h-3" />}
                         Ações
                       </button>
+                      {manifestActionMenu === inv.key && (
+                        <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-2xl py-1 min-w-[220px] animate-fade-in">
+                          <button onClick={() => handleManifestAction(inv.key, 'ciencia')}
+                            className="w-full text-left px-4 py-2.5 hover:bg-blue-50 text-xs flex items-center gap-2 transition-colors">
+                            <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                            <div><div className="font-bold text-slate-700">Ciência da Operação</div><div className="text-[9px] text-slate-400">Informar que tem conhecimento</div></div>
+                          </button>
+                          <button onClick={() => handleManifestAction(inv.key, 'confirmacao')}
+                            className="w-full text-left px-4 py-2.5 hover:bg-green-50 text-xs flex items-center gap-2 transition-colors">
+                            <span className="w-2 h-2 rounded-full bg-green-400"></span>
+                            <div><div className="font-bold text-slate-700">Confirmação</div><div className="text-[9px] text-slate-400">Confirmar recebimento da mercadoria</div></div>
+                          </button>
+                          <button onClick={() => handleManifestAction(inv.key, 'desconhecimento')}
+                            className="w-full text-left px-4 py-2.5 hover:bg-orange-50 text-xs flex items-center gap-2 transition-colors">
+                            <span className="w-2 h-2 rounded-full bg-orange-400"></span>
+                            <div><div className="font-bold text-slate-700">Desconhecimento</div><div className="text-[9px] text-slate-400">Negar conhecimento da operação</div></div>
+                          </button>
+                          <button onClick={() => handleManifestAction(inv.key, 'nao_realizada')}
+                            className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-xs flex items-center gap-2 transition-colors">
+                            <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                            <div><div className="font-bold text-slate-700">Operação não Realizada</div><div className="text-[9px] text-slate-400">Informar que a operação não ocorreu</div></div>
+                          </button>
+                          <div className="border-t border-slate-100 my-1"></div>
+                          <button onClick={() => handleManifestAction(inv.key, 'download')}
+                            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 text-xs flex items-center gap-2 transition-colors">
+                            <CloudDownload className="w-3.5 h-3.5 text-slate-500" />
+                            <div><div className="font-bold text-slate-700">Download XML</div><div className="text-[9px] text-slate-400">Baixar XML completo da nota</div></div>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
