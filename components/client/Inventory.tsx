@@ -930,7 +930,10 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
                     {formatCurrency(inv.value)}
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <span className="px-2 py-0.5 rounded bg-green-50 text-green-700 text-[9px] font-black uppercase border border-green-100">
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${inv.status === 'Autorizada' ? 'bg-green-50 text-green-700 border-green-100' :
+                        inv.status === 'Cancelada' ? 'bg-red-50 text-red-700 border-red-100' :
+                          'bg-slate-50 text-slate-600 border-slate-200'
+                      }`}>
                       {inv.status}
                     </span>
                   </td>
@@ -944,9 +947,45 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
                   </td>
                 </tr>
               ))}
+              {manifestInvoices.length === 0 && !loadingManifest && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <CloudDownload className="w-12 h-12 text-slate-200" />
+                      <div>
+                        <p className="text-sm font-bold text-slate-400">Nenhuma nota encontrada</p>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Clique em "Atualizar Lista" para consultar notas emitidas contra seu CNPJ na SEFAZ
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {loadingManifest && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 className="w-10 h-10 text-slate-300 animate-spin" />
+                      <p className="text-sm font-bold text-slate-400">Consultando SEFAZ...</p>
+                      <p className="text-[10px] text-slate-400">Aguarde, comunicando com o servidor da Receita Federal</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+
+        {manifestError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-red-700">Erro na consulta</p>
+              <p className="text-[10px] text-red-600 mt-1">{manifestError}</p>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
