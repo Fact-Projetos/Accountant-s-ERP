@@ -259,8 +259,194 @@ async function consultarDistribuicaoDFe(pfxBase64, password, cnpj, uf = 'SP', ul
     }
 }
 
+/**
+ * Build XML for Evento de Manifestação do Destinatário
+ * This REQUIRES XML digital signature (XMLDSig)
+ * 
+ * Event types:
+ * 210200 = Confirmação da Operação
+ * 210210 = Ciência da Operação  
+ * 210220 = Desconhecimento da Operação
+ * 210240 = Operação não Realizada
+ */
+function buildEventoManifestacao(cnpj, chNFe, tipoEvento, nSeqEvento = 1, justificativa = '') {
+    const cleanCnpj = cnpj.replace(/\D/g, '');
+    const tpAmb = '1'; // Produção
+    const cOrgao = '91'; // Ambiente Nacional
+    const dhEvento = new Date().toISOString().replace(/\.\d{3}Z$/, '-03:00');
+    const eventId = `ID${tipoEvento}${chNFe}${String(nSeqEvento).padStart(2, '0')}`;
+
+    const descEventos = {
+        '210200': 'Confirmacao da Operacao',
+        '210210': 'Ciencia da Operacao',
+        '210220': 'Desconhecimento da Operacao',
+        '210240': 'Operacao nao Realizada'
+    };
+    const descEvento = descEventos[tipoEvento] || 'Ciencia da Operacao';
+    const versaoEvento = '1.00';
+
+    let detEventoContent = `<descEvento>${descEvento}</descEvento>`;
+    if (tipoEvento === '210240' && justificativa) {
+        detEventoContent += `<xJust>${justificativa}</xJust>`;
+    }
+
+    const infEvento = `<infEvento Id="${eventId}">` +
+        `<cOrgao>${cOrgao}</cOrgao>` +
+        `<tpAmb>${tpAmb}</tpAmb>` +
+        `<CNPJ>${cleanCnpj}</CNPJ>` +
+        `<chNFe>${chNFe}</chNFe>` +
+        `<dhEvento>${dhEvento}</dhEvento>` +
+        `<tpEvento>${tipoEvento}</tpEvento>` +
+        `<nSeqEvento>${nSeqEvento}</nSeqEvento>` +
+        `<verEvento>${versaoEvento}</verEvento>` +
+        `<detEvento versao="${versaoEvento}">` +
+        detEventoContent +
+        `</detEvento>` +
+        `</infEvento>`;
+
+    return { infEvento, eventId };
+}
+
+/**
+ * Sign the evento XML using XMLDSig (required for RecepcaoEvento)
+ */
+function signEventoXml(infEvento, eventId, keyPem, certDerBase64) {
+    const crypto = require('crypto');
+
+    // Canonical XML of infEvento
+    const canonicalXml = infEvento;
+
+    // Calculate SHA-1 digest
+    const digestHash = crypto.createHash('sha1').update(canonicalXml, 'utf8').digest('base64');
+
+    // Build SignedInfo
+    const signedInfo = `<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#">` +
+        `<CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>` +
+        `<SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>` +
+        `<Reference URI="#${eventId}">` +
+        `<Transforms>` +
+        `<Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>` +
+        `<Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>` +
+        `</Transforms>` +
+        `<DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>` +
+        `<DigestValue>${digestHash}</DigestValue>` +
+        `</Reference>` +
+        `</SignedInfo>`;
+
+    // Sign with RSA-SHA1
+    const signer = crypto.createSign('RSA-SHA1');
+    signer.update(signedInfo);
+    const signatureValue = signer.sign(keyPem, 'base64');
+
+    // Build complete Signature
+    const signature = `<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">` +
+        signedInfo +
+        `<SignatureValue>${signatureValue}</SignatureValue>` +
+        `<KeyInfo>` +
+        `<X509Data>` +
+        `<X509Certificate>${certDerBase64}</X509Certificate>` +
+        `</X509Data>` +
+        `</KeyInfo>` +
+        `</Signature>`;
+
+    return signature;
+}
+
+/**
+ * Send Manifestação do Destinatário event to SEFAZ
+ */
+async function enviarEventoManifestacao(pfxBase64, password, cnpj, chNFe, tipoEvento, justificativa = '') {
+    console.log(`[Manifest] Enviando evento ${tipoEvento} para NFe ${chNFe}`);
+
+    // 1. Read certificate
+    const cert = readCertificate(pfxBase64, password);
+
+    if (new Date(cert.notAfter) < new Date()) {
+        throw new Error('Certificado digital expirado!');
+    }
+
+    // Get certificate DER base64 for X509Certificate element
+    const certDerBase64 = forge.util.encode64(
+        forge.asn1.toDer(forge.pki.certificateToAsn1(
+            forge.pki.certificateFromPem(cert.certPem)
+        )).getBytes()
+    );
+
+    // 2. Build evento XML
+    const { infEvento, eventId } = buildEventoManifestacao(cnpj, chNFe, tipoEvento, 1, justificativa);
+
+    // 3. Sign the XML
+    const signature = signEventoXml(infEvento, eventId, cert.keyPem, certDerBase64);
+
+    // 4. Build complete evento with signature
+    const eventoXml = `<evento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">` +
+        infEvento +
+        signature +
+        `</evento>`;
+
+    // 5. Wrap in envEvento
+    const envEvento = `<envEvento xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">` +
+        `<idLote>1</idLote>` +
+        eventoXml +
+        `</envEvento>`;
+
+    // 6. Build SOAP envelope
+    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>` +
+        `<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">` +
+        `<soap12:Body>` +
+        `<nfeRecepcaoEvento xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">` +
+        `<nfeDadosMsg>` +
+        envEvento +
+        `</nfeDadosMsg>` +
+        `</nfeRecepcaoEvento>` +
+        `</soap12:Body>` +
+        `</soap12:Envelope>`;
+
+    // 7. Send request
+    const EVENTO_URL = 'https://www.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx';
+
+    try {
+        const response = await axios.post(EVENTO_URL, soapEnvelope, {
+            headers: {
+                'Content-Type': 'application/soap+xml; charset=utf-8'
+            },
+            httpsAgent: new https.Agent({
+                cert: cert.certPem,
+                key: cert.keyPem,
+                rejectUnauthorized: false
+            }),
+            timeout: 30000
+        });
+
+        console.log(`[Manifest] Evento - HTTP ${response.status}`);
+
+        const cStatEvento = getTextContent(response.data, 'cStat');
+        const xMotivoEvento = getTextContent(response.data, 'xMotivo');
+
+        console.log(`[Manifest] Evento cStat: ${cStatEvento} - ${xMotivoEvento}`);
+
+        return {
+            success: cStatEvento === '128' || cStatEvento === '135' || cStatEvento === '136',
+            cStat: cStatEvento,
+            xMotivo: xMotivoEvento,
+            chNFe,
+            tipoEvento
+        };
+    } catch (err) {
+        if (err.response) {
+            const cStatErr = getTextContent(err.response.data || '', 'cStat');
+            const xMotivoErr = getTextContent(err.response.data || '', 'xMotivo');
+            if (cStatErr) {
+                return { success: false, cStat: cStatErr, xMotivo: xMotivoErr, chNFe, tipoEvento };
+            }
+        }
+        throw new Error(`Erro ao enviar evento: ${err.message}`);
+    }
+}
+
 module.exports = {
     consultarDistribuicaoDFe,
+    enviarEventoManifestacao,
     readCertificate,
     getUfCode
 };

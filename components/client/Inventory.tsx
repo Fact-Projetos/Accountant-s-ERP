@@ -931,19 +931,92 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${inv.status === 'Autorizada' ? 'bg-green-50 text-green-700 border-green-100' :
-                        inv.status === 'Cancelada' ? 'bg-red-50 text-red-700 border-red-100' :
-                          'bg-slate-50 text-slate-600 border-slate-200'
+                      inv.status === 'Cancelada' ? 'bg-red-50 text-red-700 border-red-100' :
+                        'bg-slate-50 text-slate-600 border-slate-200'
                       }`}>
                       {inv.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <button
-                      onClick={() => alert(`Iniciando importação da nota: ${inv.key}`)}
-                      className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm"
-                    >
-                      Importar XML
-                    </button>
+                    <div className="flex items-center gap-1 justify-center">
+                      <button
+                        onClick={async () => {
+                          if (!companyId) return;
+                          const { data: company } = await supabase
+                            .from('companies')
+                            .select('cnpj, state, certificate_base64, certificate_password')
+                            .eq('id', companyId)
+                            .single();
+                          if (!company?.certificate_base64) { alert('Certificado não cadastrado'); return; }
+
+                          const action = window.prompt(
+                            'Escolha a ação:\n1 = Ciência da Operação\n2 = Confirmação\n3 = Desconhecimento\n4 = Operação não Realizada\n5 = Download XML',
+                            '1'
+                          );
+                          if (!action) return;
+
+                          const eventMap: Record<string, string> = { '1': '210210', '2': '210200', '3': '210220', '4': '210240' };
+
+                          if (action === '5') {
+                            // Download XML
+                            try {
+                              const resp = await fetch('http://localhost:3099/manifest/download-xml', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  certificateBase64: company.certificate_base64,
+                                  certificatePassword: company.certificate_password,
+                                  cnpj: company.cnpj, uf: company.state || 'SP', chNFe: inv.key
+                                })
+                              });
+                              const result = await resp.json();
+                              if (result.success && result.xmlCompleto) {
+                                // Save to manifest_invoices
+                                await supabase.from('manifest_invoices')
+                                  .update({ xml_completo: result.xmlCompleto, status: 'Importada' })
+                                  .eq('company_id', companyId)
+                                  .eq('chave_nfe', inv.key);
+                                alert('✅ XML baixado com sucesso! Nota pronta para importação no estoque.');
+                              } else {
+                                alert(`⚠️ ${result.message || result.xMotivo || 'XML não disponível'}`);
+                              }
+                            } catch (e: any) { alert('❌ Erro: ' + e.message); }
+                          } else if (eventMap[action]) {
+                            let justificativa = '';
+                            if (action === '4') {
+                              justificativa = window.prompt('Justificativa (mín. 15 caracteres):') || '';
+                              if (justificativa.length < 15) { alert('Justificativa deve ter pelo menos 15 caracteres'); return; }
+                            }
+                            try {
+                              const resp = await fetch('http://localhost:3099/manifest/evento', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  certificateBase64: company.certificate_base64,
+                                  certificatePassword: company.certificate_password,
+                                  cnpj: company.cnpj, chNFe: inv.key,
+                                  tipoEvento: eventMap[action], justificativa
+                                })
+                              });
+                              const result = await resp.json();
+                              if (result.success) {
+                                await supabase.from('manifest_invoices')
+                                  .update({ status: action === '1' ? 'Ciência' : action === '2' ? 'Confirmada' : action === '3' ? 'Desconhecida' : 'Não Realizada', manifested_at: new Date().toISOString() })
+                                  .eq('company_id', companyId)
+                                  .eq('chave_nfe', inv.key);
+                                alert(`✅ Evento registrado!\n${result.cStat} - ${result.xMotivo}`);
+                                fetchManifestFromSefaz();
+                              } else {
+                                alert(`❌ ${result.cStat} - ${result.xMotivo}`);
+                              }
+                            } catch (e: any) { alert('❌ Erro: ' + e.message); }
+                          }
+                        }}
+                        className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm"
+                      >
+                        Ações
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

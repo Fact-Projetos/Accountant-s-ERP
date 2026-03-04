@@ -333,7 +333,7 @@ app.get('/status', (req, res) => {
 // MANIFESTAÇÃO DO DESTINATÁRIO - Busca NFe via SEFAZ
 // ═══════════════════════════════════════════════════════════════
 
-const { consultarDistribuicaoDFe, readCertificate } = require('./manifest-service');
+const { consultarDistribuicaoDFe, enviarEventoManifestacao, readCertificate } = require('./manifest-service');
 
 // ─── Endpoint: Consultar notas do SEFAZ ──────────────────────────
 app.post('/manifest/consulta', async (req, res) => {
@@ -415,6 +415,107 @@ app.post('/manifest/certificado/validar', async (req, res) => {
         });
     } catch (err) {
         console.error('[Manifest] Erro ao validar certificado:', err.message);
+        res.json({ success: false, error: err.message });
+    }
+});
+
+// ─── Endpoint: Enviar evento de manifestação ────────────────────
+app.post('/manifest/evento', async (req, res) => {
+    try {
+        const { certificateBase64, certificatePassword, cnpj, chNFe, tipoEvento, justificativa } = req.body;
+
+        if (!certificateBase64 || !certificatePassword || !cnpj || !chNFe || !tipoEvento) {
+            return res.status(400).json({
+                success: false,
+                error: 'Parâmetros obrigatórios: certificateBase64, certificatePassword, cnpj, chNFe, tipoEvento'
+            });
+        }
+
+        // Validate event type
+        const validEvents = ['210200', '210210', '210220', '210240'];
+        if (!validEvents.includes(tipoEvento)) {
+            return res.status(400).json({
+                success: false,
+                error: `tipoEvento inválido. Use: ${validEvents.join(', ')}`
+            });
+        }
+
+        // 210240 requires justificativa
+        if (tipoEvento === '210240' && !justificativa) {
+            return res.status(400).json({
+                success: false,
+                error: 'Justificativa obrigatória para "Operação não Realizada"'
+            });
+        }
+
+        console.log(`\n[Manifest] ═══ Evento Manifestação ═══`);
+        console.log(`[Manifest] Tipo: ${tipoEvento}`);
+        console.log(`[Manifest] Chave: ${chNFe}`);
+
+        const result = await enviarEventoManifestacao(
+            certificateBase64,
+            certificatePassword,
+            cnpj,
+            chNFe,
+            tipoEvento,
+            justificativa || ''
+        );
+
+        res.json(result);
+    } catch (err) {
+        console.error('[Manifest] Erro evento:', err.message);
+        res.json({ success: false, error: err.message });
+    }
+});
+
+// ─── Endpoint: Download XML completo da nota ─────────────────────
+app.post('/manifest/download-xml', async (req, res) => {
+    try {
+        const { certificateBase64, certificatePassword, cnpj, uf, chNFe } = req.body;
+
+        if (!certificateBase64 || !certificatePassword || !cnpj || !chNFe) {
+            return res.status(400).json({
+                success: false,
+                error: 'Parâmetros obrigatórios: certificateBase64, certificatePassword, cnpj, chNFe'
+            });
+        }
+
+        console.log(`\n[Manifest] ═══ Download XML ═══`);
+        console.log(`[Manifest] Chave: ${chNFe}`);
+
+        // Use consChNFe to get the complete NFe XML
+        const result = await consultarDistribuicaoDFe(
+            certificateBase64,
+            certificatePassword,
+            cnpj,
+            uf || 'SP',
+            '0',
+            chNFe
+        );
+
+        // Find the complete XML
+        const xmlCompleto = result.notas.find(n => n.tipo === 'completo');
+
+        if (xmlCompleto) {
+            res.json({
+                success: true,
+                chNFe,
+                xmlCompleto: xmlCompleto.xmlCompleto,
+                cStat: result.cStat,
+                xMotivo: result.xMotivo
+            });
+        } else {
+            // May need Ciência first
+            res.json({
+                success: false,
+                cStat: result.cStat,
+                xMotivo: result.xMotivo,
+                message: 'XML completo não disponível. Pode ser necessário enviar "Ciência da Operação" primeiro.',
+                notas: result.notas.length
+            });
+        }
+    } catch (err) {
+        console.error('[Manifest] Erro download XML:', err.message);
         res.json({ success: false, error: err.message });
     }
 });
