@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { partnerService } from '../../services/partnerService';
 import {
   Plus, Search, Filter, Printer, Calendar, FileText, Eye, Edit, Trash2,
-  Send, FileCheck, ArrowLeft, Save, Truck, CreditCard, Calculator, Loader2, AlertCircle, CheckCircle2, X, ChevronRight, MoreHorizontal, Receipt, DollarSign, Download
+  Send, FileCheck, FileSignature, ArrowLeft, Save, Truck, CreditCard, Calculator, Loader2, AlertCircle, CheckCircle2, X, ChevronRight, MoreHorizontal, Receipt, DollarSign, Download
 } from 'lucide-react';
 
 // Interfaces for Form
@@ -173,8 +173,9 @@ const Sales: React.FC<SalesProps> = ({ companyId }) => {
         .from('sales')
         .select(`
           *,
-          partners (name, document, email, phone, zip_code, street, number, complement, neighborhood, city, state),
-          sale_items (id, product_id, code, desc_fiscal, desc_internal, qty, unit_price, total)
+          partners (name, document, email, phone, zip_code, street, number, complement, neighborhood, city, state, state_registration),
+          sale_items (id, product_id, code, desc_fiscal, desc_internal, qty, unit_price, total, discount_share, freight_share, ncm, cfop, cst_icms, origem, bc_icms, aliq_icms, valor_icms, cst_pis, bc_pis, aliq_pis, valor_pis, cst_cofins, bc_cofins, aliq_cofins, valor_cofins, cst_ipi, bc_ipi, aliq_ipi, valor_ipi),
+          sale_payments (id, method, amount)
         `)
         .eq('company_id', companyId)
         .order('date', { ascending: false });
@@ -201,77 +202,232 @@ const Sales: React.FC<SalesProps> = ({ companyId }) => {
   const generateXml = (sale: any) => {
     const items = sale.sale_items || [];
     const partner = sale.partners || {};
-    const comp = companyData || {};
-    const xmlItems = items.map((item: any, i: number) => `
-    <det nItem="${i + 1}">
-      <prod>
-        <cProd>${item.code || ''}</cProd>
-        <xProd>${item.desc_fiscal || item.desc_internal || ''}</xProd>
-        <qCom>${item.qty || 0}</qCom>
-        <vUnCom>${(item.unit_price || 0).toFixed(2)}</vUnCom>
-        <vProd>${(item.total || 0).toFixed(2)}</vProd>
-      </prod>
-    </det>`).join('');
+    const comp = companyData || {} as any;
+    const cleanCnpj = (comp.cnpj || '').replace(/\D/g, '');
+    const cleanPartnerDoc = (partner.document || '').replace(/\D/g, '');
+    const isPartnerPJ = cleanPartnerDoc.length === 14;
+    const emissionDate = new Date(sale.date).toISOString().replace(/\.\d{3}Z$/, '-03:00');
+    const crt = comp.tax_regime === 'Simples Nacional' ? '1' : comp.tax_regime === 'Lucro Presumido' ? '2' : '3';
+    const isSN = crt === '1';
+
+    // Generate cNF  (8 digit random)
+    const cNF = String(Math.floor(10000000 + Math.random() * 90000000));
+
+    // NFe number from sale order
+    const nNF = String(sale.order_number || Math.floor(Math.random() * 999999) + 1);
+
+    // Items XML with full fiscal data
+    const xmlItems = items.map((item: any, i: number) => {
+      const valorProd = (item.total || 0);
+      const discShare = item.discount_share || 0;
+      const freightShare = item.freight_share || 0;
+      const bcCalc = valorProd - discShare + freightShare;
+
+      // ICMS block
+      let icmsBlock = '';
+      if (isSN) {
+        // Simples Nacional uses CSOSN
+        const csosn = item.cst_icms || '102';
+        if (['101', '201'].includes(csosn)) {
+          icmsBlock = `<ICMSSN101><Orig>${item.origem || '0'}</Orig><CSOSN>${csosn}</CSOSN><pCredSN>0.00</pCredSN><vCredICMSSN>0.00</vCredICMSSN></ICMSSN101>`;
+        } else if (['102', '103', '300', '400'].includes(csosn)) {
+          icmsBlock = `<ICMSSN102><Orig>${item.origem || '0'}</Orig><CSOSN>${csosn}</CSOSN></ICMSSN102>`;
+        } else {
+          icmsBlock = `<ICMSSN102><Orig>${item.origem || '0'}</Orig><CSOSN>102</CSOSN></ICMSSN102>`;
+        }
+      } else {
+        // Regime normal uses CST
+        const cst = item.cst_icms || '00';
+        const aliqIcms = item.aliq_icms || 0;
+        const vIcms = (bcCalc * aliqIcms / 100);
+        if (['00', '10', '20', '70', '90'].includes(cst)) {
+          icmsBlock = `<ICMS00><Orig>${item.origem || '0'}</Orig><CST>${cst}</CST><modBC>3</modBC><vBC>${bcCalc.toFixed(2)}</vBC><pICMS>${aliqIcms.toFixed(2)}</pICMS><vICMS>${vIcms.toFixed(2)}</vICMS></ICMS00>`;
+        } else if (['40', '41', '50', '60'].includes(cst)) {
+          icmsBlock = `<ICMS40><Orig>${item.origem || '0'}</Orig><CST>${cst}</CST></ICMS40>`;
+        } else {
+          icmsBlock = `<ICMS00><Orig>${item.origem || '0'}</Orig><CST>${cst}</CST><modBC>3</modBC><vBC>${bcCalc.toFixed(2)}</vBC><pICMS>${aliqIcms.toFixed(2)}</pICMS><vICMS>${vIcms.toFixed(2)}</vICMS></ICMS00>`;
+        }
+      }
+
+      // PIS block
+      const cstPis = item.cst_pis || '49';
+      const aliqPis = item.aliq_pis || 0;
+      const vPis = (bcCalc * aliqPis / 100);
+      let pisBlock = '';
+      if (['01', '02'].includes(cstPis)) {
+        pisBlock = `<PISAliq><CST>${cstPis}</CST><vBC>${bcCalc.toFixed(2)}</vBC><pPIS>${aliqPis.toFixed(4)}</pPIS><vPIS>${vPis.toFixed(2)}</vPIS></PISAliq>`;
+      } else {
+        pisBlock = `<PISOutr><CST>${cstPis}</CST><vBC>0.00</vBC><pPIS>0.0000</pPIS><vPIS>0.00</vPIS></PISOutr>`;
+      }
+
+      // COFINS block
+      const cstCofins = item.cst_cofins || '49';
+      const aliqCofins = item.aliq_cofins || 0;
+      const vCofins = (bcCalc * aliqCofins / 100);
+      let cofinsBlock = '';
+      if (['01', '02'].includes(cstCofins)) {
+        cofinsBlock = `<COFINSAliq><CST>${cstCofins}</CST><vBC>${bcCalc.toFixed(2)}</vBC><pCOFINS>${aliqCofins.toFixed(4)}</pCOFINS><vCOFINS>${vCofins.toFixed(2)}</vCOFINS></COFINSAliq>`;
+      } else {
+        cofinsBlock = `<COFINSOutr><CST>${cstCofins}</CST><vBC>0.00</vBC><pCOFINS>0.0000</pCOFINS><vCOFINS>0.00</vCOFINS></COFINSOutr>`;
+      }
+
+      return `
+  <det nItem="${i + 1}">
+    <prod>
+      <cProd>${item.code || String(i + 1)}</cProd>
+      <cEAN>SEM GTIN</cEAN>
+      <xProd>${item.desc_fiscal || item.desc_internal || ''}</xProd>
+      <NCM>${item.ncm || '00000000'}</NCM>
+      <CFOP>${item.cfop || '5102'}</CFOP>
+      <uCom>UN</uCom>
+      <qCom>${(item.qty || 0).toFixed(4)}</qCom>
+      <vUnCom>${(item.unit_price || 0).toFixed(10)}</vUnCom>
+      <vProd>${valorProd.toFixed(2)}</vProd>
+      <cEANTrib>SEM GTIN</cEANTrib>
+      <uTrib>UN</uTrib>
+      <qTrib>${(item.qty || 0).toFixed(4)}</qTrib>
+      <vUnTrib>${(item.unit_price || 0).toFixed(10)}</vUnTrib>${discShare > 0 ? `
+      <vDesc>${discShare.toFixed(2)}</vDesc>` : ''}${freightShare > 0 ? `
+      <vFrete>${freightShare.toFixed(2)}</vFrete>` : ''}
+      <indTot>1</indTot>
+    </prod>
+    <imposto>
+      <ICMS>${icmsBlock}</ICMS>
+      <PIS>${pisBlock}</PIS>
+      <COFINS>${cofinsBlock}</COFINS>
+    </imposto>
+  </det>`;
+    }).join('');
+
+    // Calculate totals
+    const totalProd = items.reduce((a: number, i: any) => a + (i.total || 0), 0);
+    const totalFrete = sale.freight_value || 0;
+    const totalDesc = sale.discount_value || 0;
+    const totalNF = totalProd - totalDesc + totalFrete;
+    const totalIcms = items.reduce((a: number, i: any) => {
+      const bc = (i.total || 0) - (i.discount_share || 0) + (i.freight_share || 0);
+      return a + (bc * (i.aliq_icms || 0) / 100);
+    }, 0);
+    const totalPis = items.reduce((a: number, i: any) => {
+      const bc = (i.total || 0) - (i.discount_share || 0) + (i.freight_share || 0);
+      return a + (bc * (i.aliq_pis || 0) / 100);
+    }, 0);
+    const totalCofins = items.reduce((a: number, i: any) => {
+      const bc = (i.total || 0) - (i.discount_share || 0) + (i.freight_share || 0);
+      return a + (bc * (i.aliq_cofins || 0) / 100);
+    }, 0);
+
+    // Payment info (pag)
+    const payments = sale.sale_payments || [];
+    const pagXml = payments.length > 0
+      ? payments.map((p: any) => {
+        const tPag = p.method === 'Dinheiro' ? '01' : p.method === 'Cartão Débito' ? '03' : p.method === 'Cartão Crédito' ? '04' : p.method === 'PIX' ? '17' : '99';
+        return `<detPag><tPag>${tPag}</tPag><vPag>${(p.amount || 0).toFixed(2)}</vPag></detPag>`;
+      }).join('')
+      : `<detPag><tPag>01</tPag><vPag>${totalNF.toFixed(2)}</vPag></detPag>`;
+
+    // Destinatário tag
+    const destDocTag = isPartnerPJ ? `<CNPJ>${cleanPartnerDoc}</CNPJ>` : `<CPF>${cleanPartnerDoc}</CPF>`;
+    const indIEDest = isPartnerPJ ? '1' : '9';
 
     return `<?xml version="1.0" encoding="UTF-8"?>
-<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
-  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
-    <infNFe Id="NFe${sale.id}" versao="4.00">
-      <ide>
-        <cUF>35</cUF>
-        <natOp>VENDA DE MERCADORIA</natOp>
-        <mod>55</mod>
-        <serie>1</serie>
-        <nNF>${sale.id.slice(0, 6).toUpperCase()}</nNF>
-        <dhEmi>${new Date(sale.date).toISOString()}</dhEmi>
-        <tpNF>1</tpNF>
-        <idDest>1</idDest>
-        <tpAmb>2</tpAmb>
-        <finNFe>1</finNFe>
-      </ide>
-      <emit>
-        <CNPJ>${(comp.cnpj || '').replace(/\D/g, '')}</CNPJ>
-        <xNome>${comp.name || ''}</xNome>
-        <xFant>${comp.trade_name || ''}</xFant>
-        <enderEmit>
-          <xLgr>${comp.street || ''}</xLgr>
-          <nro>${comp.number || ''}</nro>
-          <xBairro>${comp.neighborhood || ''}</xBairro>
-          <xMun>${comp.city || ''}</xMun>
-          <UF>${comp.state || ''}</UF>
-          <CEP>${(comp.zip_code || '').replace(/\D/g, '')}</CEP>
-        </enderEmit>
-        <IE>${(comp.state_registration || '').replace(/\D/g, '')}</IE>
-        <CRT>${comp.tax_regime === 'Simples Nacional' ? '1' : '3'}</CRT>
-      </emit>
-      <dest>
-        <CPF>${(partner.document || '').replace(/\D/g, '')}</CPF>
-        <xNome>${partner.name || ''}</xNome>
-        <enderDest>
-          <xLgr>${partner.street || ''}</xLgr>
-          <nro>${partner.number || ''}</nro>
-          <xBairro>${partner.neighborhood || ''}</xBairro>
-          <xMun>${partner.city || ''}</xMun>
-          <UF>${partner.state || ''}</UF>
-          <CEP>${(partner.zip_code || '').replace(/\D/g, '')}</CEP>
-        </enderDest>
-      </dest>${xmlItems}
-      <total>
-        <ICMSTot>
-          <vProd>${(sale.total_amount || 0).toFixed(2)}</vProd>
-          <vFrete>${(sale.freight_value || 0).toFixed(2)}</vFrete>
-          <vNF>${(sale.total_amount || 0).toFixed(2)}</vNF>
-        </ICMSTot>
-      </total>
-      <transp>
-        <modFrete>${sale.freight_type === 'CIF' ? '0' : sale.freight_type === 'FOB' ? '1' : '9'}</modFrete>
-      </transp>
-      <infAdic>
-        <infCpl>${sale.additional_info || ''}</infCpl>
-      </infAdic>
-    </infNFe>
-  </NFe>
-</nfeProc>`;
+<NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+  <infNFe versao="4.00" Id="NFe">
+    <ide>
+      <cUF>35</cUF>
+      <cNF>${cNF}</cNF>
+      <natOp>VENDA DE MERCADORIA</natOp>
+      <mod>55</mod>
+      <serie>1</serie>
+      <nNF>${nNF}</nNF>
+      <dhEmi>${emissionDate}</dhEmi>
+      <dhSaiEnt>${emissionDate}</dhSaiEnt>
+      <tpNF>1</tpNF>
+      <idDest>1</idDest>
+      <cMunFG>3550308</cMunFG>
+      <tpImp>1</tpImp>
+      <tpEmis>1</tpEmis>
+      <cDV>0</cDV>
+      <tpAmb>1</tpAmb>
+      <finNFe>1</finNFe>
+      <indFinal>1</indFinal>
+      <indPres>1</indPres>
+      <procEmi>0</procEmi>
+      <verProc>FACT_ERP_1.0</verProc>
+    </ide>
+    <emit>
+      <CNPJ>${cleanCnpj}</CNPJ>
+      <xNome>${comp.name || ''}</xNome>
+      <xFant>${comp.trade_name || comp.name || ''}</xFant>
+      <enderEmit>
+        <xLgr>${comp.street || ''}</xLgr>
+        <nro>${comp.number || 'S/N'}</nro>${comp.complement ? `
+        <xCpl>${comp.complement}</xCpl>` : ''}
+        <xBairro>${comp.neighborhood || ''}</xBairro>
+        <cMun>3550308</cMun>
+        <xMun>${comp.city || ''}</xMun>
+        <UF>${comp.state || 'SP'}</UF>
+        <CEP>${(comp.zip_code || '').replace(/\D/g, '')}</CEP>
+        <cPais>1058</cPais>
+        <xPais>BRASIL</xPais>
+        <fone>${(comp.phone || '').replace(/\D/g, '')}</fone>
+      </enderEmit>
+      <IE>${(comp.state_registration || '').replace(/\D/g, '')}</IE>
+      <CRT>${crt}</CRT>
+    </emit>
+    <dest>
+      ${destDocTag}
+      <xNome>${partner.name || ''}</xNome>
+      <enderDest>
+        <xLgr>${partner.street || ''}</xLgr>
+        <nro>${partner.number || 'S/N'}</nro>
+        <xBairro>${partner.neighborhood || ''}</xBairro>
+        <cMun>3550308</cMun>
+        <xMun>${partner.city || ''}</xMun>
+        <UF>${partner.state || 'SP'}</UF>
+        <CEP>${(partner.zip_code || '').replace(/\D/g, '')}</CEP>
+        <cPais>1058</cPais>
+        <xPais>BRASIL</xPais>
+      </enderDest>
+      <indIEDest>${indIEDest}</indIEDest>
+    </dest>${xmlItems}
+    <total>
+      <ICMSTot>
+        <vBC>${(!isSN ? totalProd.toFixed(2) : '0.00')}</vBC>
+        <vICMS>${(!isSN ? totalIcms.toFixed(2) : '0.00')}</vICMS>
+        <vICMSDeson>0.00</vICMSDeson>
+        <vFCPUFDest>0.00</vFCPUFDest>
+        <vICMSUFDest>0.00</vICMSUFDest>
+        <vICMSUFRemet>0.00</vICMSUFRemet>
+        <vFCP>0.00</vFCP>
+        <vBCST>0.00</vBCST>
+        <vST>0.00</vST>
+        <vFCPST>0.00</vFCPST>
+        <vFCPSTRet>0.00</vFCPSTRet>
+        <vProd>${totalProd.toFixed(2)}</vProd>
+        <vFrete>${totalFrete.toFixed(2)}</vFrete>
+        <vSeg>0.00</vSeg>
+        <vDesc>${totalDesc.toFixed(2)}</vDesc>
+        <vII>0.00</vII>
+        <vIPI>0.00</vIPI>
+        <vIPIDevol>0.00</vIPIDevol>
+        <vPIS>${totalPis.toFixed(2)}</vPIS>
+        <vCOFINS>${totalCofins.toFixed(2)}</vCOFINS>
+        <vOutro>0.00</vOutro>
+        <vNF>${totalNF.toFixed(2)}</vNF>
+      </ICMSTot>
+    </total>
+    <transp>
+      <modFrete>${sale.freight_type === 'CIF' ? '0' : sale.freight_type === 'FOB' ? '1' : '9'}</modFrete>
+    </transp>
+    <pag>
+      ${pagXml}
+    </pag>
+    <infAdic>
+      <infCpl>${sale.additional_info || ''}</infCpl>
+    </infAdic>
+  </infNFe>
+</NFe>`;
   };
 
   const handleDownloadXml = (sale: any) => {
@@ -1376,6 +1532,19 @@ const Sales: React.FC<SalesProps> = ({ companyId }) => {
                             title="Recibo"
                           >
                             <Receipt className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (item.status === 'Emitida') {
+                                alert('Esta venda já possui NF-e emitida.');
+                                return;
+                              }
+                              handleDownloadXml(item);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-all"
+                            title="Emitir NF-e"
+                          >
+                            <FileSignature className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={async () => {

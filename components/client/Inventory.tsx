@@ -317,15 +317,29 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
       const result = await response.json();
 
       if (!result.success) {
+        // Tratar cStat 656 especificamente
+        if (result.error?.includes('656') || result.error?.includes('Consumo Indevido')) {
+          alert('⏳ A SEFAZ limitou as consultas temporariamente.\n\nIsso acontece quando o mesmo CNPJ faz múltiplas consultas.\nAguarde 1 hora e tente novamente.');
+          setLoadingManifest(false);
+          return;
+        }
         throw new Error(result.error || 'Erro na comunicação com SEFAZ');
       }
 
       console.log(`[Manifest] SEFAZ: ${result.cStat} - ${result.xMotivo}`);
       console.log(`[Manifest] Notas: ${result.notas?.length || 0}, ultNSU: ${result.ultNSU}`);
 
+      // Handle cStat 656 (Consumo Indevido) - returned as success from backend
+      if (result.cStat === '656') {
+        alert('⏳ A SEFAZ limitou as consultas temporariamente.\n\nAguarde 1 hora e tente novamente.\nIsso é normal após múltiplas consultas seguidas.');
+        setLoadingManifest(false);
+        return;
+      }
+
       // 3. Save results to manifest_invoices table
       if (result.notas && result.notas.length > 0) {
         for (const nota of result.notas) {
+          if (!nota.chaveNfe) continue; // Skip entries without chave
           await supabase.from('manifest_invoices').upsert({
             company_id: companyId,
             nsu: nota.nsu,
@@ -343,9 +357,12 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
         }
       }
 
-      // 4. Update last_nsu
-      if (result.ultNSU) {
+      // 4. ALWAYS update last_nsu (even when no documents found)
+      if (result.ultNSU && result.ultNSU !== '0') {
         await supabase.from('companies').update({ last_nsu: result.ultNSU }).eq('id', companyId);
+      } else if (result.maxNSU && result.maxNSU !== '0') {
+        // If ultNSU is 0 but maxNSU exists, use maxNSU
+        await supabase.from('companies').update({ last_nsu: result.maxNSU }).eq('id', companyId);
       }
 
       // 5. Reload from database  
@@ -362,7 +379,7 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
           document: inv.cnpj_emitente || '',
           date: inv.data_emissao ? new Date(inv.data_emissao).toLocaleDateString('pt-BR') : '',
           value: parseFloat(inv.valor_nfe) || 0,
-          status: inv.sit_nfe === '1' ? 'Autorizada' : inv.sit_nfe === '3' ? 'Cancelada' : 'Disponível',
+          status: inv.sit_nfe === '1' ? 'Autorizada' : inv.sit_nfe === '3' ? 'Cancelada' : (inv.status || 'Disponível'),
           nsu: inv.nsu,
           id: inv.id
         })));
@@ -371,8 +388,10 @@ const Inventory: React.FC<InventoryProps> = ({ companyId }) => {
       // Show result message
       if (result.notas && result.notas.length > 0) {
         alert(`✅ ${result.notas.length} nota(s) encontrada(s) na SEFAZ!\n\ncStat: ${result.cStat}\n${result.xMotivo}`);
+      } else if (result.cStat === '137') {
+        alert('ℹ️ Nenhuma nota nova encontrada para este CNPJ.\n\nAs notas aparecerão aqui quando fornecedores emitirem NFe contra seu CNPJ.');
       } else {
-        alert(`ℹ️ Nenhuma nota nova encontrada.\n\ncStat: ${result.cStat}\n${result.xMotivo}`);
+        alert(`ℹ️ Consulta realizada.\n\ncStat: ${result.cStat}\n${result.xMotivo}`);
       }
 
     } catch (err: any) {
