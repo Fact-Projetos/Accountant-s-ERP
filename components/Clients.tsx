@@ -339,8 +339,20 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
       // Auto-gerar client_seq_id para novos registros
       let seqId = formData.clientSeqId;
       if (!formData.id) {
-        const maxId = clients.reduce((max, c) => Math.max(max, c.clientSeqId || 0), 0);
-        seqId = maxId + 1;
+        // Find the absolute maximum ID directly from the database to prevent overlapping or missing values
+        const { data: maxIdData, error: maxIdError } = await supabase
+          .from('companies')
+          .select('client_seq_id')
+          .order('client_seq_id', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (maxIdError && maxIdError.code !== 'PGRST116') { // PGRST116 is 'Results contain 0 rows'
+          console.error("Erro ao buscar o ID máximo:", maxIdError);
+        }
+        
+        const lastSeqId = maxIdData?.client_seq_id || 0;
+        seqId = lastSeqId + 1;
       }
 
       const companyData = {
