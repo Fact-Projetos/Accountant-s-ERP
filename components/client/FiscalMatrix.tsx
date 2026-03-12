@@ -9,6 +9,7 @@ import {
 // ─── Interfaces ────────────────────────────────────────────────
 interface CfopMapping {
    id: string;
+   natureza_operacao: string;
    uf: string;
    cfop_supplier: string;
    cfop_entry: string;
@@ -26,6 +27,7 @@ interface CfopMapping {
 
 interface NcmConfig {
    id: string;
+   natureza_operacao: string;
    uf: string;
    ncm: string;
    cfop_entry: string;
@@ -46,6 +48,7 @@ interface FiscalMatrixProps {
 }
 
 const UF_LIST = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
+const NATUREZA_OPERACAO_OPTIONS = ['Revenda de Mercadorias', 'Remessa de Mercadorias', 'Outras Operações'];
 
 const FormInput = ({ label, value, onChange, placeholder, icon, mono }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; icon?: React.ReactNode; mono?: boolean }) => (
    <div>
@@ -71,11 +74,11 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
 
    // CFOP Mapping
    const [cfopMappings, setCfopMappings] = useState<CfopMapping[]>([]);
-   const [cfopForm, setCfopForm] = useState<CfopMapping>({ id: '', uf: 'SP', cfop_supplier: '', cfop_entry: '', cfop_exit_internal: '', cfop_exit_interstate: '', cst_csosn: '', cst_pis_cofins: '', cst_ipi: '', enquadramento_ipi: '', aliq_icms: 0, aliq_pis: 0, aliq_cofins: 0, aliq_ipi: 0 });
+   const [cfopForm, setCfopForm] = useState<CfopMapping>({ id: '', natureza_operacao: '', uf: 'SP', cfop_supplier: '', cfop_entry: '', cfop_exit_internal: '', cfop_exit_interstate: '', cst_csosn: '', cst_pis_cofins: '', cst_ipi: '', enquadramento_ipi: '', aliq_icms: 0, aliq_pis: 0, aliq_cofins: 0, aliq_ipi: 0 });
 
    // NCM Config
    const [ncmConfigs, setNcmConfigs] = useState<NcmConfig[]>([]);
-   const [ncmForm, setNcmForm] = useState<NcmConfig>({ id: '', uf: 'SP', ncm: '', cfop_entry: '', cfop_exit_internal: '', cfop_exit_interstate: '', cst_csosn: '', cst_pis_cofins: '', cst_ipi: '', enquadramento_ipi: '', aliq_icms: 0, aliq_pis: 0, aliq_cofins: 0, aliq_ipi: 0 });
+   const [ncmForm, setNcmForm] = useState<NcmConfig>({ id: '', natureza_operacao: '', uf: 'SP', ncm: '', cfop_entry: '', cfop_exit_internal: '', cfop_exit_interstate: '', cst_csosn: '', cst_pis_cofins: '', cst_ipi: '', enquadramento_ipi: '', aliq_icms: 0, aliq_pis: 0, aliq_cofins: 0, aliq_ipi: 0 });
 
    const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
@@ -125,7 +128,7 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
 
    // ─── CFOP Handlers ──────────────────────────────────────────
    const handleNewCfop = () => {
-      setCfopForm({ id: '', uf: 'SP', cfop_supplier: '', cfop_entry: '', cfop_exit_internal: '', cfop_exit_interstate: '', cst_csosn: '', cst_pis_cofins: '', cst_ipi: '', enquadramento_ipi: '', aliq_icms: 0, aliq_pis: 0, aliq_cofins: 0, aliq_ipi: 0 });
+      setCfopForm({ id: '', natureza_operacao: '', uf: 'SP', cfop_supplier: '', cfop_entry: '', cfop_exit_internal: '', cfop_exit_interstate: '', cst_csosn: '', cst_pis_cofins: '', cst_ipi: '', enquadramento_ipi: '', aliq_icms: 0, aliq_pis: 0, aliq_cofins: 0, aliq_ipi: 0 });
       setViewMode('FORM');
    };
 
@@ -191,7 +194,7 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
 
    // ─── NCM Handlers ───────────────────────────────────────────
    const handleNewNcm = () => {
-      setNcmForm({ id: '', uf: 'SP', ncm: '', cfop_entry: '', cfop_exit_internal: '', cfop_exit_interstate: '', cst_csosn: '', cst_pis_cofins: '', cst_ipi: '', enquadramento_ipi: '', aliq_icms: 0, aliq_pis: 0, aliq_cofins: 0, aliq_ipi: 0 });
+      setNcmForm({ id: '', natureza_operacao: '', uf: 'SP', ncm: '', cfop_entry: '', cfop_exit_internal: '', cfop_exit_interstate: '', cst_csosn: '', cst_pis_cofins: '', cst_ipi: '', enquadramento_ipi: '', aliq_icms: 0, aliq_pis: 0, aliq_cofins: 0, aliq_ipi: 0 });
       setViewMode('FORM');
    };
 
@@ -298,6 +301,19 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
                {isCfop ? (
                   <div className="space-y-5">
                      <div className="grid grid-cols-12 gap-5">
+                        <div className="col-span-12 md:col-span-4">
+                           <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase flex items-center gap-1">
+                              <Settings2 className="w-3 h-3 text-slate-400" /> Natureza da Operação
+                           </label>
+                           <select
+                              value={cfopForm.natureza_operacao}
+                              onChange={e => setCfopForm(p => ({ ...p, natureza_operacao: e.target.value }))}
+                              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-slate-400 bg-white font-bold"
+                           >
+                              <option value="">Selecione...</option>
+                              {NATUREZA_OPERACAO_OPTIONS.map(op => <option key={op} value={op}>{op}</option>)}
+                           </select>
+                        </div>
                         <div className="col-span-12 md:col-span-2">
                            <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase flex items-center gap-1">
                               <Globe className="w-3 h-3 text-slate-400" /> UF
@@ -313,13 +329,15 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
                         <div className="col-span-12 md:col-span-2">
                            <FormInput label="CFOP Fornecedor" value={cfopForm.cfop_supplier} onChange={v => setCfopForm(p => ({ ...p, cfop_supplier: v }))} placeholder="Ex: 5102" mono icon={<ArrowRightLeft className="w-3 h-3 text-slate-400" />} />
                         </div>
-                        <div className="col-span-12 md:col-span-3">
+                        <div className="col-span-12 md:col-span-4">
                            <FormInput label="CFOP Entrada" value={cfopForm.cfop_entry} onChange={v => setCfopForm(p => ({ ...p, cfop_entry: v }))} placeholder="Ex: 1102" mono icon={<ArrowRightLeft className="w-3 h-3 text-green-500" />} />
                         </div>
+                     </div>
+                     <div className="grid grid-cols-12 gap-5">
                         <div className="col-span-12 md:col-span-3">
                            <FormInput label="CFOP Saída Interna" value={cfopForm.cfop_exit_internal} onChange={v => setCfopForm(p => ({ ...p, cfop_exit_internal: v }))} placeholder="Ex: 5102" mono icon={<ArrowRightLeft className="w-3 h-3 text-blue-500" />} />
                         </div>
-                        <div className="col-span-12 md:col-span-2">
+                        <div className="col-span-12 md:col-span-3">
                            <FormInput label="CFOP Interestadual" value={cfopForm.cfop_exit_interstate} onChange={v => setCfopForm(p => ({ ...p, cfop_exit_interstate: v }))} placeholder="Ex: 6102" mono icon={<ArrowRightLeft className="w-3 h-3 text-orange-500" />} />
                         </div>
                      </div>
@@ -425,6 +443,19 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
                ) : (
                   <div className="space-y-5">
                      <div className="grid grid-cols-12 gap-5">
+                        <div className="col-span-12 md:col-span-4">
+                           <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase flex items-center gap-1">
+                              <Settings2 className="w-3 h-3 text-slate-400" /> Natureza da Operação
+                           </label>
+                           <select
+                              value={ncmForm.natureza_operacao}
+                              onChange={e => setNcmForm(p => ({ ...p, natureza_operacao: e.target.value }))}
+                              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-slate-400 bg-white font-bold"
+                           >
+                              <option value="">Selecione...</option>
+                              {NATUREZA_OPERACAO_OPTIONS.map(op => <option key={op} value={op}>{op}</option>)}
+                           </select>
+                        </div>
                         <div className="col-span-12 md:col-span-2">
                            <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase flex items-center gap-1">
                               <Globe className="w-3 h-3 text-slate-400" /> UF
@@ -440,13 +471,15 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
                         <div className="col-span-12 md:col-span-2">
                            <FormInput label="NCM" value={ncmForm.ncm} onChange={v => setNcmForm(p => ({ ...p, ncm: v }))} placeholder="0000.00.00" mono icon={<Hash className="w-3 h-3 text-slate-400" />} />
                         </div>
-                        <div className="col-span-12 md:col-span-3">
+                        <div className="col-span-12 md:col-span-4">
                            <FormInput label="CFOP Entrada" value={ncmForm.cfop_entry} onChange={v => setNcmForm(p => ({ ...p, cfop_entry: v }))} placeholder="Ex: 1102" mono icon={<ArrowRightLeft className="w-3 h-3 text-green-500" />} />
                         </div>
+                     </div>
+                     <div className="grid grid-cols-12 gap-5">
                         <div className="col-span-12 md:col-span-3">
                            <FormInput label="CFOP Saída Interna" value={ncmForm.cfop_exit_internal} onChange={v => setNcmForm(p => ({ ...p, cfop_exit_internal: v }))} placeholder="Ex: 5102" mono icon={<ArrowRightLeft className="w-3 h-3 text-blue-500" />} />
                         </div>
-                        <div className="col-span-12 md:col-span-2">
+                        <div className="col-span-12 md:col-span-3">
                            <FormInput label="CFOP Interestadual" value={ncmForm.cfop_exit_interstate} onChange={v => setNcmForm(p => ({ ...p, cfop_exit_interstate: v }))} placeholder="Ex: 6102" mono icon={<ArrowRightLeft className="w-3 h-3 text-orange-500" />} />
                         </div>
                      </div>
@@ -559,13 +592,15 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
    const filteredCfop = cfopMappings.filter(m =>
       m.uf.toLowerCase().includes(searchTerm.toLowerCase()) ||
       m.cfop_supplier.includes(searchTerm) ||
-      m.cfop_entry.includes(searchTerm)
+      m.cfop_entry.includes(searchTerm) ||
+      (m.natureza_operacao || '').toLowerCase().includes(searchTerm.toLowerCase())
    );
 
    const filteredNcm = ncmConfigs.filter(n =>
       n.uf.toLowerCase().includes(searchTerm.toLowerCase()) ||
       n.ncm.includes(searchTerm) ||
-      n.cfop_entry.includes(searchTerm)
+      n.cfop_entry.includes(searchTerm) ||
+      (n.natureza_operacao || '').toLowerCase().includes(searchTerm.toLowerCase())
    );
 
    return (
@@ -632,6 +667,7 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
                      <thead>
                         <tr className="bg-slate-50 border-b-2 border-slate-200">
                            {[
+                              { key: 'natureza', label: 'Nat. Operação', width: 'min-w-[150px]' },
                               { key: 'uf', label: 'UF', width: 'w-20' },
                               { key: 'cfop_fornecedor', label: 'CFOP Fornecedor', width: 'min-w-[120px]' },
                               { key: 'cfop_entrada', label: 'CFOP Entrada', width: 'min-w-[120px]' },
@@ -653,14 +689,14 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
                      <tbody>
                         {isLoading && (
                            <tr>
-                              <td colSpan={6} className="text-center py-10">
+                              <td colSpan={7} className="text-center py-10">
                                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" />
                               </td>
                            </tr>
                         )}
                         {!isLoading && filteredCfop.length === 0 && (
                            <tr>
-                              <td colSpan={6} className="text-center py-10">
+                              <td colSpan={7} className="text-center py-10">
                                  <Settings2 className="w-8 h-8 text-slate-200 mx-auto mb-2" />
                                  <p className="text-sm text-slate-400 font-medium">Nenhum mapeamento CFOP cadastrado.</p>
                                  <p className="text-xs text-slate-300 mt-1">Clique em "Cadastrar Regra" para começar.</p>
@@ -669,6 +705,9 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
                         )}
                         {filteredCfop.map((item, idx) => (
                            <tr key={item.id} className={`border-b border-slate-100 transition-colors group cursor-default ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50`}>
+                              <td className="px-2 py-1.5 border-r border-slate-100">
+                                 <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-bold text-[10px] border border-purple-100">{item.natureza_operacao || '—'}</span>
+                              </td>
                               <td className="px-2 py-1.5 border-r border-slate-100">
                                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-[10px] border border-slate-200">{item.uf}</span>
                               </td>
@@ -709,6 +748,7 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
                      <thead>
                         <tr className="bg-slate-50 border-b-2 border-slate-200">
                            {[
+                              { key: 'natureza', label: 'Nat. Operação', width: 'min-w-[150px]' },
                               { key: 'uf', label: 'UF', width: 'w-20' },
                               { key: 'ncm', label: 'NCM', width: 'min-w-[120px]' },
                               { key: 'cfop_entrada', label: 'CFOP Entrada', width: 'min-w-[120px]' },
@@ -730,14 +770,14 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
                      <tbody>
                         {isLoading && (
                            <tr>
-                              <td colSpan={6} className="text-center py-10">
+                              <td colSpan={7} className="text-center py-10">
                                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" />
                               </td>
                            </tr>
                         )}
                         {!isLoading && filteredNcm.length === 0 && (
                            <tr>
-                              <td colSpan={6} className="text-center py-10">
+                              <td colSpan={7} className="text-center py-10">
                                  <Settings2 className="w-8 h-8 text-slate-200 mx-auto mb-2" />
                                  <p className="text-sm text-slate-400 font-medium">Nenhuma configuração NCM cadastrada.</p>
                                  <p className="text-xs text-slate-300 mt-1">Clique em "Cadastrar Regra" para começar.</p>
@@ -746,6 +786,9 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
                         )}
                         {filteredNcm.map((item, idx) => (
                            <tr key={item.id} className={`border-b border-slate-100 transition-colors group cursor-default ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50`}>
+                              <td className="px-2 py-1.5 border-r border-slate-100">
+                                 <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded font-bold text-[10px] border border-purple-100">{item.natureza_operacao || '—'}</span>
+                              </td>
                               <td className="px-2 py-1.5 border-r border-slate-100">
                                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold text-[10px] border border-slate-200">{item.uf}</span>
                               </td>
