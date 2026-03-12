@@ -4,7 +4,7 @@ import { supabase } from '../services/supabase';
 
 interface CompanyData {
     id: string;
-    code: string;
+    clientSeqId: number;
     name: string;
     cnpj: string;
     city: string;
@@ -13,7 +13,7 @@ interface CompanyData {
 interface AssessmentRow {
     id: string;
     companyId: string;
-    companyCode: string;
+    companySeqId: number;
     companyName: string;
     cnpj: string;
     month: string;
@@ -65,10 +65,17 @@ const TaxAssessment: React.FC = () => {
     const fetchCompanies = async () => {
         const { data, error } = await supabase
             .from('companies')
-            .select('id, code, name, cnpj, city')
-            .order('name');
+            .select('id, client_seq_id, name, cnpj, city')
+            .order('client_seq_id', { ascending: true });
         if (error) { console.error('Error fetching companies:', error); return; }
-        setCompanies((data || []) as CompanyData[]);
+        
+        // Map the snake_case DB column to camelCase for the frontend UI
+        const mappedData = (data || []).map((d: any) => ({
+            ...d,
+            clientSeqId: d.client_seq_id || 0
+        }));
+        
+        setCompanies(mappedData as CompanyData[]);
     };
 
     const fetchAssessments = async () => {
@@ -99,7 +106,7 @@ const TaxAssessment: React.FC = () => {
                 return {
                     id: `${company.id}-${filterMonth || 'all'}-${filterYear}`,
                     companyId: company.id,
-                    companyCode: company.code || '---',
+                    companySeqId: company.clientSeqId,
                     companyName: company.name,
                     cnpj: company.cnpj || '',
                     month: filterMonth || 'Atual',
@@ -351,10 +358,10 @@ const TaxAssessment: React.FC = () => {
                     <table className="w-full border-collapse">
                         <thead className="sticky top-0 z-10">
                             <tr className="bg-slate-50 border-b-2 border-slate-200">
-                                <th className="w-16 text-left px-3 py-2 border-r border-slate-200 cursor-pointer select-none" onClick={() => handleSort('companyCode')}>
+                                <th className="w-16 text-left px-3 py-2 border-r border-slate-200 cursor-pointer select-none" onClick={() => handleSort('companySeqId')}>
                                     <div className="flex items-center gap-1">
-                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Cód.</span>
-                                        {sortField === 'companyCode' && <ArrowUpDown className="w-2.5 h-2.5 text-slate-400" />}
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">ID</span>
+                                        {sortField === 'companySeqId' && <ArrowUpDown className="w-2.5 h-2.5 text-slate-400" />}
                                     </div>
                                 </th>
                                 <th className="text-left px-3 py-2 border-r border-slate-200 cursor-pointer select-none" onClick={() => handleSort('companyName')}>
@@ -407,7 +414,9 @@ const TaxAssessment: React.FC = () => {
                                     >
                                         {/* Código */}
                                         <td className="px-3 py-1.5 border-r border-slate-100">
-                                            <span className="text-[11px] font-bold font-mono text-slate-500">{row.companyCode}</span>
+                                            <span className="text-[11px] font-bold font-mono text-slate-500">
+                                                {row.companySeqId ? String(row.companySeqId).padStart(3, '0') : '---'}
+                                            </span>
                                         </td>
                                         {/* Empresa */}
                                         <td className="px-3 py-1.5 border-r border-slate-100">

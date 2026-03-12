@@ -8,6 +8,7 @@ import {
 // ─── Interfaces ────────────────────────────────────────────────
 interface Company {
     id: string;
+    client_seq_id: number;
     code: string;
     name: string;
     status: string;
@@ -102,11 +103,11 @@ const AccountantFinancial: React.FC = () => {
 
     const fetchCompanies = async () => {
         try {
-            const { data, error } = await supabase.from('companies').select('id, code, name, status, client_date, monthly_fee, due_day').order('code');
+            const { data, error } = await supabase.from('companies').select('id, client_seq_id, code, name, status, client_date, monthly_fee, due_day').order('client_seq_id', { ascending: true });
             if (error) { console.error('Error fetching companies:', error); }
             const sorted = (data || []).sort((a: any, b: any) => {
-                const codeA = parseInt(a.code || '0', 10) || 0;
-                const codeB = parseInt(b.code || '0', 10) || 0;
+                const codeA = a.client_seq_id || 0;
+                const codeB = b.client_seq_id || 0;
                 return codeA - codeB;
             });
             setCompanies(sorted);
@@ -270,7 +271,7 @@ const AccountantFinancial: React.FC = () => {
                         <button onClick={() => { setSelectedCompany(null); setEditingMonth(null); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ArrowLeft className="w-5 h-5" /></button>
                         <div>
                             <h2 className="text-xl font-serif font-bold text-slate-800">{selectedCompany.name}</h2>
-                            <p className="text-xs text-slate-500 font-bold">Cód: {selectedCompany.code || '—'} • Ano: {selectedYear}</p>
+                            <p className="text-xs text-slate-500 font-bold">Cód: {selectedCompany.client_seq_id ? String(selectedCompany.client_seq_id).padStart(3, '0') : '—'} • Ano: {selectedYear}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -531,7 +532,8 @@ const AccountantFinancial: React.FC = () => {
 
     const filteredCompanies = companies.filter(c => {
         const s = searchTerm.toLowerCase();
-        return c.name?.toLowerCase().includes(s) || c.code?.toLowerCase().includes(s);
+        const seqIdStr = c.client_seq_id ? String(c.client_seq_id) : '';
+        return c.name?.toLowerCase().includes(s) || seqIdStr.includes(s) || c.code?.toLowerCase().includes(s);
     });
 
     return (
@@ -580,7 +582,7 @@ const AccountantFinancial: React.FC = () => {
                         <table className="w-full border-collapse">
                             <thead className="sticky top-0 z-10">
                                 <tr className="bg-slate-50 border-b-2 border-slate-200">
-                                    <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Cód</span></th>
+                                    <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">ID</span></th>
                                     <th className="min-w-[180px] px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Cliente</span></th>
                                     <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-right"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Mensalidade</span></th>
                                     <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-center"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Venc.</span></th>
@@ -597,7 +599,9 @@ const AccountantFinancial: React.FC = () => {
                                     const companyRecords = records.filter(r => r.company_id === company.id);
                                     return (
                                         <tr key={company.id} className={`border-b border-slate-100 transition-colors cursor-pointer ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50`} onClick={() => fetchClientDetail(company)}>
-                                            <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">{company.code || '-'}</span></td>
+                                            <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">
+                                                {company.client_seq_id ? String(company.client_seq_id).padStart(3, '0') : '-'}
+                                            </span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-bold text-slate-800 truncate block max-w-[220px]">{company.name}</span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100 text-right">
                                                 <span className="text-[10px] font-mono font-bold text-green-600">{company.monthly_fee ? fmt(company.monthly_fee) : '-'}</span>

@@ -6,6 +6,7 @@ import { supabase } from '../services/supabase';
 interface MovementData {
   id: string;
   clientId: string;
+  clientSeqId: number;
   clientName: string;
   clientCode: string;
   city: string;
@@ -158,8 +159,8 @@ const Movements: React.FC<{
     try {
       const { data, error } = await supabase
         .from('companies')
-        .select('id, name, code, city')
-        .order('name');
+        .select('id, client_seq_id, name, code, city')
+        .order('client_seq_id', { ascending: true });
       if (error) { console.error('Error fetching clients:', error); return; }
       if (data) {
         setClients(data as any);
@@ -191,6 +192,7 @@ const Movements: React.FC<{
         return {
           id: found?.id || `temp-${client.id}`,
           clientId: client.id!,
+          clientSeqId: client.clientSeqId || 0,
           clientName: client.name!,
           clientCode: client.code || '---',
           city: client.city || '',
@@ -199,6 +201,8 @@ const Movements: React.FC<{
           status: (found?.status as any) || 'Sem movimento'
         };
       });
+      // Sort the movements list using clientSeqId (from Database index)
+      displayList.sort((a, b) => a.clientSeqId - b.clientSeqId);
       setMovements(displayList);
     } catch (error) {
       console.error('Error fetching movements:', error);
@@ -813,7 +817,7 @@ const Movements: React.FC<{
                     </button>
                   </th>
                   <th className="w-16 text-left px-2 py-2 border-r border-slate-200">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Cod.</span>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">ID</span>
                   </th>
                   <th className="text-left px-2 py-2 border-r border-slate-200">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Cliente</span>
@@ -825,7 +829,7 @@ const Movements: React.FC<{
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Compet.</span>
                   </th>
                   <th className="w-24 text-left px-2 py-2 border-r border-slate-200">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Status</span>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Status NF-e</span>
                   </th>
                   <th className="w-36 text-center px-2 py-2">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Acoes</span>
@@ -864,7 +868,9 @@ const Movements: React.FC<{
                           </button>
                         </td>
                         <td className="px-2 py-1.5 border-r border-slate-100">
-                          <span className="text-[11px] font-bold font-mono text-slate-500">{move.clientCode}</span>
+                          <span className="text-[11px] font-bold font-mono text-slate-500">
+                            {move.clientSeqId ? String(move.clientSeqId).padStart(3, '0') : '---'}
+                          </span>
                         </td>
                         <td className="px-2 py-1.5 border-r border-slate-100">
                           <span className="text-[11px] font-bold text-slate-700">{move.clientName}</span>
@@ -877,10 +883,12 @@ const Movements: React.FC<{
                           <span className="text-[11px] text-slate-600">{move.month} / {move.year}</span>
                         </td>
                         <td className="px-2 py-1.5 border-r border-slate-100">
-                          <div className="flex items-center gap-1 font-bold uppercase text-[9px]">
-                            <div className={`w-1.5 h-1.5 rounded-full ${move.status === 'Com movimento' ? 'bg-green-500' : 'bg-slate-300'}`}></div>
-                            <span className={move.status === 'Com movimento' ? 'text-green-700' : 'text-slate-400'}>{move.status}</span>
-                          </div>
+                          {move.status === 'Com movimento' && (
+                            <div className="flex items-center gap-1 font-bold uppercase text-[9px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded-sm inline-flex">
+                              <CheckCircle2 className="w-3 h-3 text-green-500" />
+                              <span>NF-e Emitida</span>
+                            </div>
+                          )}
                         </td>
                         <td className="px-2 py-1.5 text-center">
                           <div className="flex items-center justify-center gap-1">
