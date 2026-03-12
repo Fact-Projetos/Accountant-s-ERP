@@ -70,7 +70,7 @@ function getMonthIndex(monthName) {
 async function findElement(page, selector) {
     // 1. Tenta na pagina principal (rapido)
     try {
-        const el = await page.waitForSelector(selector, { timeout: 2000, state: 'attached' });
+        const el = await page.waitForSelector(selector, { timeout: 120000, state: 'attached' });
         if (el) return { element: el, frame: page };
     } catch (e) { }
 
@@ -78,7 +78,7 @@ async function findElement(page, selector) {
     const frames = page.frames();
     for (const frame of frames) {
         try {
-            const el = await frame.waitForSelector(selector, { timeout: 1500, state: 'attached' });
+            const el = await frame.waitForSelector(selector, { timeout: 120000, state: 'attached' });
             if (el) {
                 console.log(`[Server] Encontrado em iframe: ${frame.url()}`);
                 return { element: el, frame: frame };
@@ -147,7 +147,8 @@ app.post('/open', async (req, res) => {
         const page = await ctx.newPage();
         pages[sessionId] = page;
 
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        // Aumentado o timeout para 120s (120000ms) para dar tempo de resolver o CAPTCHA manualmente
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120000 });
 
         // Esperar a pagina estabilizar (rede parar de carregar)
         try {
@@ -199,7 +200,7 @@ app.post('/execute-step', async (req, res) => {
             case 'clicar_download': {
                 const { element } = await findElement(page, step.selector);
                 try {
-                    await element.click({ force: true, timeout: 1500 });
+                    await element.click({ force: true, timeout: 120000 });
                 } catch (e) {
                     await element.evaluate(el => el.click());
                 }
