@@ -41,6 +41,7 @@ export type Database = {
                     city: string | null
                     city_hall_login: string | null
                     city_hall_password: string | null
+                    client_seq_id: number | null
                     cnpj: string
                     code: string | null
                     complement: string | null
@@ -59,6 +60,7 @@ export type Database = {
                     street: string | null
                     tax_regime: string | null
                     trade_name: string | null
+                    visible_views: string[] | null
                     zip_code: string | null
                 }
                 Insert: {
@@ -66,6 +68,7 @@ export type Database = {
                     city?: string | null
                     city_hall_login?: string | null
                     city_hall_password?: string | null
+                    client_seq_id?: number | null
                     cnpj: string
                     code?: string | null
                     complement?: string | null
@@ -84,6 +87,7 @@ export type Database = {
                     street?: string | null
                     tax_regime?: string | null
                     trade_name?: string | null
+                    visible_views?: string[] | null
                     zip_code?: string | null
                 }
                 Update: {
@@ -91,6 +95,7 @@ export type Database = {
                     city?: string | null
                     city_hall_login?: string | null
                     city_hall_password?: string | null
+                    client_seq_id?: number | null
                     cnpj?: string
                     code?: string | null
                     complement?: string | null
@@ -109,6 +114,7 @@ export type Database = {
                     street?: string | null
                     tax_regime?: string | null
                     trade_name?: string | null
+                    visible_views?: string[] | null
                     zip_code?: string | null
                 }
                 Relationships: []

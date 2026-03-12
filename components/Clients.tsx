@@ -166,7 +166,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
     }
   };
 
-  // Filter Logic + Sort by Id sequencial
+  // Filter Logic + Sort by Sistema (code)
   const filteredClients = clients.filter(c => {
     const search = searchTerm.toLowerCase();
     const nameMatch = c.name?.toLowerCase().includes(search) ?? false;
@@ -175,7 +175,9 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
     const idMatch = String(c.clientSeqId || '').includes(search);
     return nameMatch || cnpjMatch || codeMatch || idMatch;
   }).sort((a, b) => {
-    return (a.clientSeqId || 0) - (b.clientSeqId || 0);
+    const codeA = a.code || '';
+    const codeB = b.code || '';
+    return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
   });
 
   const togglePasswordVisibility = (id: string) => {
@@ -938,10 +940,10 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                       className={`border-b border-slate-100 transition-colors group cursor-default ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
                         } hover:bg-blue-50/50`}
                     >
-                      {/* Id (sequencial do banco) */}
+                      {/* Id (sequencial da grade) */}
                       {!hiddenColumns.includes('id_seq') && (
                         <td className="px-2 py-1.5 border-r border-slate-100">
-                          <span className="text-[11px] font-mono font-bold text-slate-600">{client.clientSeqId ? String(client.clientSeqId).padStart(3, '0') : '-'}</span>
+                          <span className="text-[11px] font-mono font-bold text-slate-600">{String(idx + 1).padStart(3, '0')}</span>
                         </td>
                       )}
                       {/* Sistema (antigo Código) */}
