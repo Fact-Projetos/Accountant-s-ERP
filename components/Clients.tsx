@@ -102,6 +102,57 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
     return () => clearTimeout(timeout);
   }, []);
 
+  // Use node-forge to automatically extract certificate dates when file and password are provided
+  useEffect(() => {
+    const extractCertDates = async () => {
+      const base64 = formData.certificateBase64;
+      const password = formData.certificatePassword;
+      if (!base64 || !password) return;
+      
+      try {
+        // @ts-ignore: node-forge types don't always play well with dynamic imports
+        const forgeModule = await import('node-forge');
+        const forge = forgeModule.default || forgeModule;
+        const p12Der = forge.util.decode64(base64);
+        const p12Asn1 = forge.asn1.fromDer(p12Der);
+        const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);
+        
+        if (p12.safeContents) {
+          for (const safeContents of p12.safeContents) {
+            if (safeContents.safeBags) {
+              for (const safeBag of safeContents.safeBags) {
+                if (safeBag.type === forge.pki.oids.certBag) {
+                  const cert = safeBag.cert;
+                  if (cert && cert.validity) {
+                    const notBefore = cert.validity.notBefore.toISOString().split('T')[0];
+                    const notAfter = cert.validity.notAfter.toISOString().split('T')[0];
+                    
+                    if (formData.certificateDate !== notBefore || formData.certificateExpiry !== notAfter) {
+                      setFormData(prev => ({
+                        ...prev,
+                        certificateDate: notBefore,
+                        certificateExpiry: notAfter
+                      }));
+                    }
+                    return;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // Silently fail: password might be wrong or file invalid
+      }
+    };
+    
+    const timer = setTimeout(() => {
+      extractCertDates();
+    }, 500); // debounce typing
+    
+    return () => clearTimeout(timer);
+  }, [formData.certificateBase64, formData.certificatePassword]);
+
   const fetchClients = async (isBackground = false) => {
     if (!isBackground) setIsLoading(true);
     else setIsRefreshing(true);
