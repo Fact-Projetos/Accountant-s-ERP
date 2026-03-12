@@ -110,13 +110,14 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .order('code');
+        .order('client_seq_id', { ascending: true });
 
       if (error) throw error;
 
       if (data) {
         const transformed: Client[] = data.map((item: any) => ({
           id: item.id,
+          clientSeqId: item.client_seq_id || 0,
           code: item.code || '',
           name: item.name,
           tradeName: item.trade_name || '',
@@ -165,17 +166,16 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
     }
   };
 
-  // Filter Logic + Numeric Sort by Code
+  // Filter Logic + Sort by Id sequencial
   const filteredClients = clients.filter(c => {
     const search = searchTerm.toLowerCase();
     const nameMatch = c.name?.toLowerCase().includes(search) ?? false;
     const cnpjMatch = c.cnpj?.includes(search) ?? false;
     const codeMatch = c.code?.toLowerCase().includes(search) ?? false;
-    return nameMatch || cnpjMatch || codeMatch;
+    const idMatch = String(c.clientSeqId || '').includes(search);
+    return nameMatch || cnpjMatch || codeMatch || idMatch;
   }).sort((a, b) => {
-    const codeA = parseInt(a.code || '0', 10) || 0;
-    const codeB = parseInt(b.code || '0', 10) || 0;
-    return codeA - codeB;
+    return (a.clientSeqId || 0) - (b.clientSeqId || 0);
   });
 
   const togglePasswordVisibility = (id: string) => {
@@ -283,7 +283,15 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
       const formattedCnpj = formatCNPJ(formData.cnpj);
       const formattedCep = formData.zipCode ? formatCEP(formData.zipCode) : '';
 
+      // Auto-gerar client_seq_id para novos registros
+      let seqId = formData.clientSeqId;
+      if (!formData.id) {
+        const maxId = clients.reduce((max, c) => Math.max(max, c.clientSeqId || 0), 0);
+        seqId = maxId + 1;
+      }
+
       const companyData = {
+        client_seq_id: seqId,
         name: formData.name,
         trade_name: formData.tradeName,
         cnpj: formattedCnpj,
@@ -426,11 +434,19 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
           <div className="border border-slate-200 rounded-b-xl overflow-hidden bg-slate-50/30">
             <div className="grid grid-cols-12 border-b border-slate-200">
               <InputField
-                label="Código"
+                label="Id"
+                name="clientSeqId"
+                value={formData.id ? String(formData.clientSeqId || '') : 'Auto'}
+                onChange={handleInputChange}
+                readOnly={true}
+                className="col-span-1"
+              />
+              <InputField
+                label="Sistema"
                 name="code"
                 value={formData.code || ''}
                 onChange={handleInputChange}
-                className="col-span-2"
+                className="col-span-1"
               />
               <SelectField
                 label="Status"
@@ -884,7 +900,8 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
               <thead>
                 <tr className="bg-slate-50 border-b-2 border-slate-200">
                   {[
-                    { key: 'codigo', label: 'Código', width: 'w-20' },
+                    { key: 'id_seq', label: 'Id', width: 'w-14' },
+                    { key: 'codigo', label: 'Sistema', width: 'w-20' },
                     { key: 'status', label: 'Status', width: 'w-24' },
                     { key: 'empresa', label: 'Empresa', width: 'min-w-[200px]' },
                     { key: 'cnpj', label: 'CNPJ', width: 'w-40' },
@@ -921,7 +938,13 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                       className={`border-b border-slate-100 transition-colors group cursor-default ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
                         } hover:bg-blue-50/50`}
                     >
-                      {/* Código */}
+                      {/* Id (sequencial do banco) */}
+                      {!hiddenColumns.includes('id_seq') && (
+                        <td className="px-2 py-1.5 border-r border-slate-100">
+                          <span className="text-[11px] font-mono font-bold text-slate-600">{client.clientSeqId ? String(client.clientSeqId).padStart(3, '0') : '-'}</span>
+                        </td>
+                      )}
+                      {/* Sistema (antigo Código) */}
                       {!hiddenColumns.includes('codigo') && (
                         <td className="px-2 py-1.5 border-r border-slate-100">
                           <span className="text-[11px] font-mono font-bold text-slate-600">{client.code || '-'}</span>
@@ -1027,7 +1050,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={8 - hiddenColumns.length} className="px-4 py-12 text-center">
+                    <td colSpan={9 - hiddenColumns.length} className="px-4 py-12 text-center">
                       <p className="text-slate-400 text-sm mb-2">Nenhum cliente encontrado para "{searchTerm}".</p>
                       <p className="text-[10px] text-slate-300 uppercase font-black tracking-widest leading-loose">
                         Tente clicar no ícone de sincronizar acima ou criar um novo cliente no botão "+".

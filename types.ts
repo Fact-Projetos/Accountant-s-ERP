@@ -1,5 +1,6 @@
 export interface Client {
   id: string;
+  clientSeqId?: number; // Sequencial persistente (Id)
   // Basic Info
   status: 'Ativo' | 'Inativo' | 'Com Manutenção' | 'Sem Manutenção';
   code?: string;
