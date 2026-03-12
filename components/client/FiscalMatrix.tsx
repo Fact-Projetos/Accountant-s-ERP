@@ -160,6 +160,7 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
       try {
          const payload = {
             company_id: companyId,
+            natureza_operacao: cfopForm.natureza_operacao,
             uf: cfopForm.uf,
             cfop_supplier: cfopForm.cfop_supplier,
             cfop_entry: cfopForm.cfop_entry,
@@ -226,6 +227,7 @@ const FiscalMatrix: React.FC<FiscalMatrixProps> = ({ companyId }) => {
       try {
          const payload = {
             company_id: companyId,
+            natureza_operacao: ncmForm.natureza_operacao,
             uf: ncmForm.uf,
             ncm: ncmForm.ncm,
             cfop_entry: ncmForm.cfop_entry,
