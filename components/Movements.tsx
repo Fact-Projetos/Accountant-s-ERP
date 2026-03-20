@@ -163,8 +163,15 @@ const Movements: React.FC<{
         .order('client_seq_id', { ascending: true });
       if (error) { console.error('Error fetching clients:', error); return; }
       if (data) {
-        setClients(data as any);
-        if (onClientsUpdate) onClientsUpdate(data as any);
+        const mapped = data.map((item: any) => ({
+          id: item.id,
+          clientSeqId: item.client_seq_id || 0,
+          name: item.name,
+          code: item.code || '',
+          city: item.city || '',
+        }));
+        setClients(mapped as any);
+        if (onClientsUpdate) onClientsUpdate(mapped as any);
       }
     } catch (err) {
       console.error('Unexpected error:', err);
@@ -819,6 +826,9 @@ const Movements: React.FC<{
                   <th className="w-16 text-left px-2 py-2 border-r border-slate-200">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">ID</span>
                   </th>
+                  <th className="w-20 text-left px-2 py-2 border-r border-slate-200">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Sistema</span>
+                  </th>
                   <th className="text-left px-2 py-2 border-r border-slate-200">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Cliente</span>
                   </th>
@@ -839,7 +849,7 @@ const Movements: React.FC<{
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-16 text-center">
+                    <td colSpan={8} className="px-4 py-16 text-center">
                       <div className="flex flex-col items-center gap-3 text-slate-400">
                         <Loader2 className="w-6 h-6 animate-spin" />
                         <p className="text-[10px] font-black uppercase tracking-widest">Sincronizando...</p>
@@ -871,6 +881,9 @@ const Movements: React.FC<{
                           <span className="text-[11px] font-bold font-mono text-slate-500">
                             {move.clientSeqId ? String(move.clientSeqId).padStart(3, '0') : '---'}
                           </span>
+                        </td>
+                        <td className="px-2 py-1.5 border-r border-slate-100">
+                          <span className="text-[11px] font-bold font-mono text-slate-600">{move.clientCode || '---'}</span>
                         </td>
                         <td className="px-2 py-1.5 border-r border-slate-100">
                           <span className="text-[11px] font-bold text-slate-700">{move.clientName}</span>
@@ -923,7 +936,7 @@ const Movements: React.FC<{
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
+                    <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
                       <div className="flex flex-col items-center gap-2">
                         <Search className="w-6 h-6 text-slate-300" />
                         <p className="text-xs">Nenhum movimento encontrado.</p>
