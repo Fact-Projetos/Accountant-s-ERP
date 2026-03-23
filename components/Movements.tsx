@@ -884,7 +884,7 @@ const Movements: React.FC<{
                         </td>
                         <td className="px-2 py-1.5 border-r border-slate-100">
                           <span className="text-[11px] font-bold font-mono text-slate-500">
-                            {String(move.clientSeqId || 0).padStart(3, '0')}
+                            {String(move.clientSeqId || (idx + 1)).padStart(3, '0')}
                           </span>
                         </td>
                         <td className="px-2 py-1.5 border-r border-slate-100">
