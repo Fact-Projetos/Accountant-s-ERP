@@ -5,6 +5,7 @@ import { supabase } from '../services/supabase';
 interface CompanyData {
     id: string;
     clientSeqId: number;
+    code: string;
     name: string;
     cnpj: string;
     city: string;
@@ -14,6 +15,7 @@ interface AssessmentRow {
     id: string;
     companyId: string;
     companySeqId: number;
+    companyCode: string;
     companyName: string;
     cnpj: string;
     month: string;
@@ -65,14 +67,15 @@ const TaxAssessment: React.FC = () => {
     const fetchCompanies = async () => {
         const { data, error } = await supabase
             .from('companies')
-            .select('id, client_seq_id, name, cnpj, city')
+            .select('id, client_seq_id, code, name, cnpj, city')
             .order('client_seq_id', { ascending: true });
         if (error) { console.error('Error fetching companies:', error); return; }
         
         // Map the snake_case DB column to camelCase for the frontend UI
         const mappedData = (data || []).map((d: any) => ({
             ...d,
-            clientSeqId: d.client_seq_id || 0
+            clientSeqId: d.client_seq_id || 0,
+            code: d.code || '',
         }));
         
         setCompanies(mappedData as CompanyData[]);
@@ -107,6 +110,7 @@ const TaxAssessment: React.FC = () => {
                     id: `${company.id}-${filterMonth || 'all'}-${filterYear}`,
                     companyId: company.id,
                     companySeqId: company.clientSeqId,
+                    companyCode: company.code || '---',
                     companyName: company.name,
                     cnpj: company.cnpj || '',
                     month: filterMonth || 'Atual',
@@ -364,6 +368,12 @@ const TaxAssessment: React.FC = () => {
                                         {sortField === 'companySeqId' && <ArrowUpDown className="w-2.5 h-2.5 text-slate-400" />}
                                     </div>
                                 </th>
+                                <th className="w-20 text-left px-3 py-2 border-r border-slate-200 cursor-pointer select-none" onClick={() => handleSort('companyCode')}>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Sistema</span>
+                                        {sortField === 'companyCode' && <ArrowUpDown className="w-2.5 h-2.5 text-slate-400" />}
+                                    </div>
+                                </th>
                                 <th className="text-left px-3 py-2 border-r border-slate-200 cursor-pointer select-none" onClick={() => handleSort('companyName')}>
                                     <div className="flex items-center gap-1">
                                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Empresa</span>
@@ -399,7 +409,7 @@ const TaxAssessment: React.FC = () => {
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={7} className="px-4 py-16 text-center">
+                                    <td colSpan={8} className="px-4 py-16 text-center">
                                         <div className="flex flex-col items-center gap-3 text-slate-400">
                                             <Loader2 className="w-6 h-6 animate-spin" />
                                             <p className="text-[10px] font-black uppercase tracking-widest">Carregando...</p>
@@ -415,8 +425,12 @@ const TaxAssessment: React.FC = () => {
                                         {/* Código */}
                                         <td className="px-3 py-1.5 border-r border-slate-100">
                                             <span className="text-[11px] font-bold font-mono text-slate-500">
-                                                {row.companySeqId ? String(row.companySeqId).padStart(3, '0') : '---'}
+                                                {row.companyCode || '---'}
                                             </span>
+                                        </td>
+                                        {/* Sistema */}
+                                        <td className="px-3 py-1.5 border-r border-slate-100">
+                                            <span className="text-[11px] font-bold font-mono text-slate-600">{row.companyCode || '---'}</span>
                                         </td>
                                         {/* Empresa */}
                                         <td className="px-3 py-1.5 border-r border-slate-100">
@@ -477,7 +491,7 @@ const TaxAssessment: React.FC = () => {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
+                                    <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
                                         <div className="flex flex-col items-center gap-2">
                                             <Search className="w-6 h-6 text-slate-300" />
                                             <p className="text-xs">Nenhuma empresa encontrada.</p>

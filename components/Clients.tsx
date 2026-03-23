@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, Plus, LogIn, Edit, Trash2, Eye, EyeOff, ArrowLeft, Save, Upload, Loader2, CheckCircle2, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { Client, ViewState } from '../types';
 import { supabase } from '../services/supabase';
+// @ts-ignore: node-forge CJS module
+import * as forge from 'node-forge';
 
 const CLIENT_VIEWS = [
   { id: ViewState.MY_COMPANY, label: 'Minha Empresa' },
@@ -110,9 +112,6 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
       if (!base64 || !password) return;
       
       try {
-        // @ts-ignore: node-forge types don't always play well with dynamic imports
-        const forgeModule = await import('node-forge');
-        const forge = forgeModule.default || forgeModule;
         const p12Der = forge.util.decode64(base64);
         const p12Asn1 = forge.asn1.fromDer(p12Der);
         const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);

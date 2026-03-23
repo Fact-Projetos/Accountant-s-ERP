@@ -583,6 +583,7 @@ const AccountantFinancial: React.FC = () => {
                             <thead className="sticky top-0 z-10">
                                 <tr className="bg-slate-50 border-b-2 border-slate-200">
                                     <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">ID</span></th>
+                                    <th className="w-20 px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Sistema</span></th>
                                     <th className="min-w-[180px] px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Cliente</span></th>
                                     <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-right"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Mensalidade</span></th>
                                     <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-center"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Venc.</span></th>
@@ -594,14 +595,15 @@ const AccountantFinancial: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {isLoading && <tr><td colSpan={16} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" /></td></tr>}
+                                {isLoading && <tr><td colSpan={17} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" /></td></tr>}
                                 {!isLoading && filteredCompanies.map((company, idx) => {
                                     const companyRecords = records.filter(r => r.company_id === company.id);
                                     return (
                                         <tr key={company.id} className={`border-b border-slate-100 transition-colors cursor-pointer ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50`} onClick={() => fetchClientDetail(company)}>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">
-                                                {company.client_seq_id ? String(company.client_seq_id).padStart(3, '0') : '-'}
+                                                {company.code || '-'}
                                             </span></td>
+                                            <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">{company.code || '---'}</span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-bold text-slate-800 truncate block max-w-[220px]">{company.name}</span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100 text-right">
                                                 <span className="text-[10px] font-mono font-bold text-green-600">{company.monthly_fee ? fmt(company.monthly_fee) : '-'}</span>

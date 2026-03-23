@@ -879,7 +879,7 @@ const Movements: React.FC<{
                         </td>
                         <td className="px-2 py-1.5 border-r border-slate-100">
                           <span className="text-[11px] font-bold font-mono text-slate-500">
-                            {move.clientSeqId ? String(move.clientSeqId).padStart(3, '0') : '---'}
+                            {move.clientCode || '---'}
                           </span>
                         </td>
                         <td className="px-2 py-1.5 border-r border-slate-100">
