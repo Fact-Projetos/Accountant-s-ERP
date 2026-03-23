@@ -601,7 +601,7 @@ const AccountantFinancial: React.FC = () => {
                                     return (
                                         <tr key={company.id} className={`border-b border-slate-100 transition-colors cursor-pointer ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50`} onClick={() => fetchClientDetail(company)}>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">
-                                                {String(company.client_seq_id || (idx + 1)).padStart(3, '0')}
+                                                {String(idx + 1).padStart(3, '0')}
                                             </span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">{company.code || '---'}</span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-bold text-slate-800 truncate block max-w-[220px]">{company.name}</span></td>
