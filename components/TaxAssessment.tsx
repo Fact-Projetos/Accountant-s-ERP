@@ -425,7 +425,7 @@ const TaxAssessment: React.FC = () => {
                                         {/* Código */}
                                         <td className="px-3 py-1.5 border-r border-slate-100">
                                             <span className="text-[11px] font-bold font-mono text-slate-500">
-                                                {row.companyCode || '---'}
+                                                {String(row.companySeqId || 0).padStart(3, '0')}
                                             </span>
                                         </td>
                                         {/* Sistema */}
