@@ -160,7 +160,8 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .order('client_seq_id', { ascending: true });
+        .order('client_seq_id', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
 
