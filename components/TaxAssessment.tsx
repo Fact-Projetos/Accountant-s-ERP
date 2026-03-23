@@ -71,10 +71,14 @@ const TaxAssessment: React.FC = () => {
             .order('client_seq_id', { ascending: true });
         if (error) { console.error('Error fetching companies:', error); return; }
         
+        // Sort alphabetically by code so IDs are deterministic
+        const sorted = (data || []).sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+        
         // Map the snake_case DB column to camelCase for the frontend UI
-        const mappedData = (data || []).map((d: any) => ({
+        const mappedData = sorted.map((d: any, idx: number) => ({
             ...d,
             clientSeqId: d.client_seq_id || 0,
+            tempSeqId: idx + 1,
             code: d.code || '',
         }));
         
@@ -109,7 +113,7 @@ const TaxAssessment: React.FC = () => {
                 return {
                     id: `${company.id}-${filterMonth || 'all'}-${filterYear}`,
                     companyId: company.id,
-                    companySeqId: company.clientSeqId,
+                    companySeqId: company.clientSeqId || (company as any).tempSeqId,
                     companyCode: company.code || '---',
                     companyName: company.name,
                     cnpj: company.cnpj || '',

@@ -105,12 +105,12 @@ const AccountantFinancial: React.FC = () => {
         try {
             const { data, error } = await supabase.from('companies').select('id, client_seq_id, code, name, status, client_date, monthly_fee, due_day').order('client_seq_id', { ascending: true });
             if (error) { console.error('Error fetching companies:', error); }
-            const sorted = (data || []).sort((a: any, b: any) => {
-                const codeA = a.client_seq_id || 0;
-                const codeB = b.client_seq_id || 0;
-                return codeA - codeB;
-            });
-            setCompanies(sorted);
+            const sorted = (data || []).sort((a: any, b: any) => (a.code || '').localeCompare(b.code || ''));
+            const mapped = sorted.map((c: any, idx: number) => ({
+                ...c,
+                temp_seq_id: idx + 1
+            }));
+            setCompanies(mapped);
         } catch (err) { console.error('Error:', err); setCompanies([]); }
     };
 
@@ -601,7 +601,7 @@ const AccountantFinancial: React.FC = () => {
                                     return (
                                         <tr key={company.id} className={`border-b border-slate-100 transition-colors cursor-pointer ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50`} onClick={() => fetchClientDetail(company)}>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">
-                                                {String(company.client_seq_id || 0).padStart(3, '0')}
+                                                {String(company.client_seq_id || (company as any).temp_seq_id).padStart(3, '0')}
                                             </span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">{company.code || '---'}</span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-bold text-slate-800 truncate block max-w-[220px]">{company.name}</span></td>

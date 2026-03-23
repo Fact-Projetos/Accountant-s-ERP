@@ -163,9 +163,13 @@ const Movements: React.FC<{
         .order('client_seq_id', { ascending: true });
       if (error) { console.error('Error fetching clients:', error); return; }
       if (data) {
-        const mapped = data.map((item: any) => ({
+        // Sort alphabetically by code so IDs are deterministic
+        const sorted = data.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+        const mapped = sorted.map((item: any, idx: number) => ({
           id: item.id,
+          // Use DB value if exists, otherwise use 1-based index (fallback)
           clientSeqId: item.client_seq_id || 0,
+          tempSeqId: idx + 1,
           name: item.name,
           code: item.code || '',
           city: item.city || '',
@@ -199,7 +203,8 @@ const Movements: React.FC<{
         return {
           id: found?.id || `temp-${client.id}`,
           clientId: client.id!,
-          clientSeqId: client.clientSeqId || 0,
+          // Display the real ID if available, otherwise the temporary sequence based on the sorted list
+          clientSeqId: client.clientSeqId || (client as any).tempSeqId,
           clientName: client.name!,
           clientCode: client.code || '---',
           city: client.city || '',
