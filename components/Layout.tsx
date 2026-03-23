@@ -78,7 +78,7 @@ const Layout: React.FC<LayoutProps> = ({ currentView, onNavigate, onLogout, user
               key={item.id}
               onClick={() => onNavigate(item.id as ViewState)}
               title={isCollapsed ? item.label : ''}
-              className={`w-full flex items-center rounded-lg text-sm font-bold transition-all duration-200 group relative ${currentView === item.id
+              className={`w-full flex items-center rounded-lg text-sm font-normal transition-all duration-200 group relative ${currentView === item.id
                 ? 'bg-slate-100 text-slate-900 shadow-sm border border-slate-200'
                 : 'text-slate-400 hover:bg-slate-50 hover:text-slate-800 border border-transparent'
                 } ${isCollapsed ? 'justify-center py-3 px-0' : 'gap-3 px-4 py-3'}`}
