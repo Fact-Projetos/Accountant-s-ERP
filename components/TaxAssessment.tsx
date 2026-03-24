@@ -67,12 +67,20 @@ const TaxAssessment: React.FC = () => {
     const fetchCompanies = async () => {
         const { data, error } = await supabase
             .from('companies')
-            .select('id, client_seq_id, code, name, cnpj, city')
-            .order('client_seq_id', { ascending: true });
+            .select('id, client_seq_id, code, name, cnpj, city, created_at');
         if (error) { console.error('Error fetching companies:', error); return; }
         
-        // Sort alphabetically by code so IDs are deterministic
-        const sorted = (data || []).sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+        // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
+        const sorted = (data || []).sort((a: any, b: any) => {
+          const codeA = a.code?.replace(/-/g, '').trim() || '';
+          const codeB = b.code?.replace(/-/g, '').trim() || '';
+          const hasCodeA = codeA.length > 0;
+          const hasCodeB = codeB.length > 0;
+          if (hasCodeA && !hasCodeB) return -1;
+          if (!hasCodeA && hasCodeB) return 1;
+          if (!hasCodeA && !hasCodeB) return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+        });
         
         // Map the snake_case DB column to camelCase for the frontend UI
         const mappedData = sorted.map((d: any, idx: number) => ({

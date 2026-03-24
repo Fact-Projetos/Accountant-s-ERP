@@ -163,8 +163,17 @@ const Movements: React.FC<{
         .order('client_seq_id', { ascending: true });
       if (error) { console.error('Error fetching clients:', error); return; }
       if (data) {
-        // Sort alphabetically by code so IDs are deterministic
-        const sorted = data.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+        // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
+        const sorted = [...data].sort((a: any, b: any) => {
+          const codeA = a.code?.replace(/-/g, '').trim() || '';
+          const codeB = b.code?.replace(/-/g, '').trim() || '';
+          const hasCodeA = codeA.length > 0;
+          const hasCodeB = codeB.length > 0;
+          if (hasCodeA && !hasCodeB) return -1;
+          if (!hasCodeA && hasCodeB) return 1;
+          if (!hasCodeA && !hasCodeB) return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+        });
         const mapped = sorted.map((item: any, idx: number) => ({
           id: item.id,
           // Use DB value if exists, otherwise use 1-based index (fallback)

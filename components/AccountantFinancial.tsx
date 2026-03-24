@@ -110,9 +110,20 @@ const AccountantFinancial: React.FC = () => {
 
     const fetchCompanies = async () => {
         try {
-            const { data, error } = await supabase.from('companies').select('id, client_seq_id, code, name, status, client_date, monthly_fee, due_day').order('client_seq_id', { ascending: true });
+            const { data, error } = await supabase.from('companies').select('id, client_seq_id, code, name, status, client_date, monthly_fee, due_day, created_at');
             if (error) { console.error('Error fetching companies:', error); }
-            const sorted = (data || []).sort((a: any, b: any) => (a.code || '').localeCompare(b.code || ''));
+            
+            // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
+            const sorted = (data || []).sort((a: any, b: any) => {
+                const codeA = a.code?.replace(/-/g, '').trim() || '';
+                const codeB = b.code?.replace(/-/g, '').trim() || '';
+                const hasCodeA = codeA.length > 0;
+                const hasCodeB = codeB.length > 0;
+                if (hasCodeA && !hasCodeB) return -1;
+                if (!hasCodeA && hasCodeB) return 1;
+                if (!hasCodeA && !hasCodeB) return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+                return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+            });
             const mapped = sorted.map((c: any, idx: number) => ({
                 ...c,
                 temp_seq_id: idx + 1

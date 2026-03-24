@@ -159,14 +159,24 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
     try {
       const { data, error } = await supabase
         .from('companies')
-        .select('*')
-        .order('client_seq_id', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: true });
+        .select('*');
 
       if (error) throw error;
 
       if (data) {
-        const transformed: Client[] = data.map((item: any) => ({
+        // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
+        const sorted = [...data].sort((a: any, b: any) => {
+          const codeA = a.code?.replace(/-/g, '').trim() || '';
+          const codeB = b.code?.replace(/-/g, '').trim() || '';
+          const hasCodeA = codeA.length > 0;
+          const hasCodeB = codeB.length > 0;
+          if (hasCodeA && !hasCodeB) return -1;
+          if (!hasCodeA && hasCodeB) return 1;
+          if (!hasCodeA && !hasCodeB) return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        const transformed: Client[] = sorted.map((item: any) => ({
           id: item.id,
           clientSeqId: item.client_seq_id || 0,
           code: item.code || '',
