@@ -89,6 +89,12 @@ const AccountantFinancial: React.FC = () => {
     // New service entry
     const [newService, setNewService] = useState<{ typeId: string; name: string; value: number; notes: string }>({ typeId: '', name: '', value: 0, notes: '' });
 
+    // Standalone Tab State
+    const [activeTab, setActiveTab] = useState<'clients' | 'standalone'>('clients');
+    const [standaloneServices, setStandaloneServices] = useState<any[]>([]);
+    const [standaloneForm, setStandaloneForm] = useState<any | null>(null);
+    const [isLoadingStandalone, setIsLoadingStandalone] = useState(false);
+
     // ─── Fetch ───────────────────────────────────────────────────
     useEffect(() => {
         fetchCompanies();
@@ -100,6 +106,7 @@ const AccountantFinancial: React.FC = () => {
         return () => clearTimeout(timeout);
     }, []);
     useEffect(() => { fetchAllRecords(); }, [selectedYear, companies]);
+    useEffect(() => { if (activeTab === 'standalone') fetchStandaloneServices(); }, [activeTab]);
 
     const fetchCompanies = async () => {
         try {
@@ -492,19 +499,12 @@ const AccountantFinancial: React.FC = () => {
     }
 
     // ─── LIST VIEW (All Clients) ─────────────────────────────────
-    const [activeTab, setActiveTab] = useState<'clients' | 'standalone'>('clients');
-    const [standaloneServices, setStandaloneServices] = useState<any[]>([]);
-    const [standaloneForm, setStandaloneForm] = useState<any | null>(null);
-    const [isLoadingStandalone, setIsLoadingStandalone] = useState(false);
-
     const fetchStandaloneServices = async () => {
         setIsLoadingStandalone(true);
         const { data } = await supabase.from('standalone_services').select('*').order('created_at', { ascending: false });
         setStandaloneServices(data || []);
         setIsLoadingStandalone(false);
     };
-
-    useEffect(() => { if (activeTab === 'standalone') fetchStandaloneServices(); }, [activeTab]);
 
     const saveStandaloneService = async () => {
         if (!standaloneForm) return;
