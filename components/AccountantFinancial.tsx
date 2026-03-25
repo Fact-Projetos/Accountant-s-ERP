@@ -266,18 +266,26 @@ const AccountantFinancial: React.FC = () => {
 
     // ─── CLIENT DETAIL VIEW (Jan-Dec) ───────────────────────────
     if (selectedCompany) {
+        let cumulativeBalance = 0;
         const monthlyData = MONTHS.map((label, idx) => {
             const m = idx + 1;
             const rec = clientRecords.find(r => r.month === m);
+            
+            // For January, we start with the carry-over from the database
+            if (m === 1) cumulativeBalance = rec?.previous_balance || 0;
+            
             const svcs = clientServices.filter(s => s.month === m);
             const extrasTotal = svcs.reduce((s, sv) => s + sv.value, 0);
             const monthlyFee = rec?.monthly_fee || 0;
             const payrollFee = rec?.payroll_fee || 0;
             const amountPaid = rec?.amount_paid || 0;
-            const prevBalance = rec?.previous_balance || 0;
+            
             const total = monthlyFee + payrollFee + extrasTotal;
-            const balance = prevBalance + total - amountPaid;
-            return { m, label, rec, svcs, extrasTotal, monthlyFee, payrollFee, amountPaid, prevBalance, total, balance, status: rec?.status || 'Em Aberto' };
+            const prevBalanceForThisMonth = cumulativeBalance;
+            cumulativeBalance += (total - amountPaid);
+            const rowBalance = cumulativeBalance;
+
+            return { m, label, rec, svcs, extrasTotal, monthlyFee, payrollFee, amountPaid, prevBalance: prevBalanceForThisMonth, total, balance: rowBalance, status: rec?.status || 'Em Aberto' };
         });
 
         const yearTotals = monthlyData.reduce((a, d) => ({
