@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import {
     DollarSign, Search, Calendar, ChevronLeft, ChevronRight,
-    Loader2, Save, Plus, Edit, Trash2, ArrowLeft, X, Briefcase
+    Loader2, Save, Plus, Edit, Trash2, ArrowLeft, X, Briefcase, MessageSquare
 } from 'lucide-react';
 
 // ─── Interfaces ────────────────────────────────────────────────
@@ -15,6 +15,8 @@ interface Company {
     client_date?: string;
     monthly_fee?: number;
     due_day?: number;
+    phone?: string;
+    created_at?: string;
 }
 
 interface FinancialRecord {
@@ -110,7 +112,7 @@ const AccountantFinancial: React.FC = () => {
 
     const fetchCompanies = async () => {
         try {
-            const { data, error } = await supabase.from('companies').select('id, client_seq_id, code, name, status, client_date, monthly_fee, due_day, created_at');
+            const { data, error } = await supabase.from('companies').select('id, client_seq_id, code, name, status, client_date, monthly_fee, due_day, created_at, phone');
             if (error) { console.error('Error fetching companies:', error); }
             
             // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
@@ -545,6 +547,40 @@ const AccountantFinancial: React.FC = () => {
         fetchStandaloneServices();
     };
 
+    const handleWhatsAppBilling = (company: Company) => {
+        const rawPhone = company.phone?.replace(/\D/g, '') || '';
+        if (!rawPhone) {
+            alert('Cliente sem telefone cadastrado.');
+            return;
+        }
+        
+        // Ensure 55 prefix for Brazil if not present
+        const phoneNumber = rawPhone.length <= 11 ? `55${rawPhone}` : rawPhone;
+
+        const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
+        // Prioritize first unpaid month, fallback to current month
+        const unpaidRecord = companyRecords.find(r => r.status === 'Em Aberto') || companyRecords.find(r => r.month === currentDate.getMonth() + 1);
+        
+        const mIdx = unpaidRecord ? unpaidRecord.month - 1 : currentDate.getMonth();
+        const monthName = MONTHS_FULL[mIdx];
+        const amount = unpaidRecord?.monthly_fee || company.monthly_fee || 0;
+        const day = company.due_day || 10;
+        const monthNum = String(mIdx + 1).padStart(2, '0');
+        const dueDate = `${day}/${monthNum}/${selectedYear}`;
+
+        const message = `Olá *${company.name}*! 👋
+
+Passando para informar que a mensalidade de **${monthName} de ${selectedYear}**, no valor de **${fmt(amount)}**, com vencimento em **${dueDate}**, já está disponível para pagamento.
+
+Caso já tenha efetuado o pagamento, por favor desconsidere esta mensagem.
+
+Atenciosamente,
+**Fact Assessoria**`;
+
+        const encodedMessage = encodeURIComponent(message);
+        window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, '_blank');
+    };
+
     const filteredCompanies = companies.filter(c => {
         const s = searchTerm.toLowerCase();
         const seqIdStr = c.client_seq_id ? String(c.client_seq_id) : '';
@@ -603,14 +639,15 @@ const AccountantFinancial: React.FC = () => {
                                     <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-right"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Mensalidade</span></th>
                                     <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-center"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Venc.</span></th>
                                     {MONTHS.map(m => (
-                                        <th key={m} className="w-16 px-1 py-2.5 border-r border-slate-200 text-center last:border-r-0">
+                                        <th key={m} className="w-16 px-1 py-2.5 border-r border-slate-200 text-center">
                                             <span className="text-[9px] font-black text-slate-500 uppercase">{m}</span>
                                         </th>
                                     ))}
+                                    <th className="w-16 px-2 py-2.5 text-center"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Ação</span></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {isLoading && <tr><td colSpan={17} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" /></td></tr>}
+                                {isLoading && <tr><td colSpan={18} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" /></td></tr>}
                                 {!isLoading && filteredCompanies.map((company, idx) => {
                                     const companyRecords = records.filter(r => r.company_id === company.id);
                                     return (
@@ -635,6 +672,15 @@ const AccountantFinancial: React.FC = () => {
                                                     </td>
                                                 );
                                             })}
+                                            <td className="px-2 py-1.5 text-center">
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company); }}
+                                                    className="p-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
+                                                    title='Enviar cobrança via WhatsApp'
+                                                >
+                                                    <MessageSquare className="w-3.5 h-3.5" />
+                                                </button>
+                                            </td>
                                         </tr>
                                     );
                                 })}
