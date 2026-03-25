@@ -359,9 +359,18 @@ const AccountantFinancial: React.FC = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-3 py-2 text-center">
-                                                    <button onClick={(e) => { e.stopPropagation(); openMonthEdit(d.m); }} className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-all">
-                                                        <Edit className="w-3.5 h-3.5" />
-                                                    </button>
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <button onClick={(e) => { e.stopPropagation(); openMonthEdit(d.m); }} className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-all" title="Editar">
+                                                            <Edit className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(selectedCompany!, d.rec, d.m, { mensalidade: d.monthlyFee, folha: d.payrollFee, extras: d.extrasTotal }); }} 
+                                                            className="p-1 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded transition-all"
+                                                            title="Enviar cobrança via WhatsApp"
+                                                        >
+                                                            <MessageSquare className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
 
@@ -547,30 +556,43 @@ const AccountantFinancial: React.FC = () => {
         fetchStandaloneServices();
     };
 
-    const handleWhatsAppBilling = (company: Company) => {
+    const handleWhatsAppBilling = (company: Company, specificRecord?: FinancialRecord, specificMonth?: number, breakdown?: { mensalidade: number, folha: number, extras: number }) => {
         const rawPhone = company.phone?.replace(/\D/g, '') || '';
         if (!rawPhone) {
             alert('Cliente sem telefone cadastrado.');
             return;
         }
         
-        // Ensure 55 prefix for Brazil if not present
         const phoneNumber = rawPhone.length <= 11 ? `55${rawPhone}` : rawPhone;
 
         const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
-        // Prioritize first unpaid month, fallback to current month
-        const unpaidRecord = companyRecords.find(r => r.status === 'Em Aberto') || companyRecords.find(r => r.month === currentDate.getMonth() + 1);
         
-        const mIdx = unpaidRecord ? unpaidRecord.month - 1 : currentDate.getMonth();
+        // Use provided record/month or find the first unpaid/current
+        const record = specificRecord || (specificMonth ? companyRecords.find(r => r.month === specificMonth) : (companyRecords.find(r => r.status === 'Em Aberto') || companyRecords.find(r => r.month === currentDate.getMonth() + 1)));
+        
+        const mIdx = record ? record.month - 1 : (specificMonth ? specificMonth - 1 : currentDate.getMonth());
         const monthName = MONTHS_FULL[mIdx];
-        const amount = unpaidRecord?.monthly_fee || company.monthly_fee || 0;
-        const day = company.due_day || 10;
         const monthNum = String(mIdx + 1).padStart(2, '0');
+        
+        // Values for breakdown - use provided breakdown or fallback to record/company
+        const mensalidade = breakdown ? breakdown.mensalidade : (record?.monthly_fee || company.monthly_fee || 0);
+        const folha = breakdown ? breakdown.folha : (record?.payroll_fee || 0);
+        const extras = breakdown ? breakdown.extras : (record?.extras || 0);
+        const total = mensalidade + folha + extras;
+        const day = company.due_day || 10;
         const dueDate = `${day}/${monthNum}/${selectedYear}`;
 
         const message = `Olá *${company.name}*! 👋
 
-Passando para informar que a mensalidade de **${monthName} de ${selectedYear}**, no valor de **${fmt(amount)}**, com vencimento em **${dueDate}**, já está disponível para pagamento.
+Passando para informar que a mensalidade de **${monthName} de ${selectedYear}** já está disponível.
+
+*Resumo dos Serviços:*
+📊 Mensalidade: ${fmt(mensalidade)}
+📄 Folha: ${fmt(folha)}
+🛠️ Outros Serviços: ${fmt(extras)}
+
+💰 *Total do Mês: ${fmt(total)}*
+📅 Vencimento: ${dueDate}
 
 Caso já tenha efetuado o pagamento, por favor desconsidere esta mensagem.
 
