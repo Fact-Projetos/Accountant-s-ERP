@@ -315,7 +315,7 @@ const AccountantFinancial: React.FC = () => {
                         <table className="w-full border-collapse">
                             <thead className="sticky top-0 z-10">
                                 <tr className="bg-slate-50 border-b-2 border-slate-200">
-                                    {['Mês', 'Saldo Ant.', 'Mensalidade', 'Folha', 'Serviços', 'Total', 'Pago', 'Saldo', 'Status', ''].map(h => (
+                                    {['Mês', 'Saldo Ant.', 'Mensalidade', 'Folha', 'Serviços', 'Total', 'Pago', 'Saldo', ''].map(h => (
                                         <th key={h} className="text-left px-3 py-2.5 border-r border-slate-200 last:border-r-0">
                                             <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">{h}</span>
                                         </th>
@@ -356,13 +356,7 @@ const AccountantFinancial: React.FC = () => {
                                                 <td className="px-3 py-2 border-r border-slate-100 text-right">
                                                     <span className={`text-[11px] font-mono font-black ${d.balance > 0 ? 'text-red-600' : d.balance < 0 ? 'text-green-600' : 'text-slate-400'}`}>{fmtShort(d.balance)}</span>
                                                 </td>
-                                                <td className="px-3 py-2 border-r border-slate-100">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <div className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
-                                                        <span className="text-[10px] font-bold text-slate-600">{d.status}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-3 py-2 text-center">
+                                                <td className="px-3 py-2 border-r border-slate-100 text-center">
                                                     <button onClick={(e) => { e.stopPropagation(); openMonthEdit(d.m); }} className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-all" title="Editar">
                                                         <Edit className="w-3.5 h-3.5" />
                                                     </button>
@@ -398,15 +392,7 @@ const AccountantFinancial: React.FC = () => {
                                                                         className="w-full px-2 py-1.5 text-[11px] border border-slate-200 rounded-md outline-none focus:border-blue-400 bg-white"
                                                                     />
                                                                 </div>
-                                                                <div>
-                                                                    <label className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Status</label>
-                                                                    <select value={editForm.status} onChange={e => setEditForm(p => p ? { ...p, status: e.target.value } : null)} className="w-full px-2 py-1.5 text-[11px] border border-slate-200 rounded-md outline-none focus:border-blue-400 bg-white font-bold">
-                                                                        <option value="Em Aberto">Em Aberto</option>
-                                                                        <option value="Pago">Pago</option>
-                                                                        <option value="Parcial">Parcial</option>
-                                                                    </select>
-                                                                </div>
-                                                                <div>
+                                                                <div className="col-span-2">
                                                                     <label className="text-[8px] font-black text-slate-500 uppercase tracking-wider">Observação</label>
                                                                     <input type="text" value={editForm.notes}
                                                                         onChange={e => setEditForm(p => p ? { ...p, notes: e.target.value } : null)}
@@ -509,7 +495,7 @@ const AccountantFinancial: React.FC = () => {
                                     <td className="px-3 py-2.5 text-right"><span className="text-[11px] font-mono font-bold">{fmt(yearTotals.mensalidade + yearTotals.folha + yearTotals.extras)}</span></td>
                                     <td className="px-3 py-2.5 text-right"><span className="text-[11px] font-mono font-bold text-green-400">{fmt(yearTotals.pago)}</span></td>
                                     <td className="px-3 py-2.5 text-right"><span className={`text-[11px] font-mono font-black ${yearTotals.saldo > 0 ? 'text-red-400' : 'text-green-400'}`}>{fmt(yearTotals.saldo)}</span></td>
-                                    <td colSpan={2}></td>
+                                    <td colSpan={1}></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -599,6 +585,8 @@ Atenciosamente,
     };
 
     const filteredCompanies = companies.filter(c => {
+        if (!c.monthly_fee || c.monthly_fee <= 0) return false;
+        
         const s = searchTerm.toLowerCase();
         const seqIdStr = c.client_seq_id ? String(c.client_seq_id) : '';
         return c.name?.toLowerCase().includes(s) || seqIdStr.includes(s) || c.code?.toLowerCase().includes(s);
@@ -693,10 +681,12 @@ Atenciosamente,
                                             </td>
                                             {MONTHS.map((_, mIdx) => {
                                                 const rec = companyRecords.find(r => r.month === mIdx + 1);
-                                                const statusColor = rec ? (STATUS_COLORS[rec.status]?.dot || 'bg-slate-300') : 'bg-slate-200';
                                                 return (
                                                     <td key={mIdx} className="px-1 py-1.5 border-r border-slate-100 last:border-r-0 text-center">
-                                                        <div className={`w-3 h-3 rounded-full mx-auto ${statusColor}`} title={rec ? `${rec.status} — ${fmt(rec.monthly_fee)}` : 'Sem lançamento'} />
+                                                        {rec && (
+                                                            <div className={`w-3 h-3 rounded-full mx-auto ${rec.amount_paid >= (rec.monthly_fee + rec.payroll_fee + (rec.extras || 0)) ? 'bg-green-500' : 'bg-red-500'}`} />
+                                                        )}
+                                                        {!rec && <div className="w-3 h-3 rounded-full mx-auto bg-slate-200" />}
                                                     </td>
                                                 );
                                             })}
@@ -719,8 +709,7 @@ Atenciosamente,
                         <span className="text-[10px] font-bold text-slate-400">{filteredCompanies.length} cliente(s)</span>
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-500" /><span className="text-[9px] font-bold text-slate-500">Pago</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500" /><span className="text-[9px] font-bold text-slate-500">Em Aberto</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-500" /><span className="text-[9px] font-bold text-slate-500">Parcial</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500" /><span className="text-[9px] font-bold text-slate-500">Pendente</span></div>
                             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-slate-200" /><span className="text-[9px] font-bold text-slate-500">Sem Lançamento</span></div>
                         </div>
                     </div>
