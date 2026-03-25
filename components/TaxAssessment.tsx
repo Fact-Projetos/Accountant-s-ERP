@@ -78,7 +78,11 @@ const TaxAssessment: React.FC = () => {
           const hasCodeB = codeB.length > 0;
           if (hasCodeA && !hasCodeB) return -1;
           if (!hasCodeA && hasCodeB) return 1;
-          if (!hasCodeA && !hasCodeB) return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          if (!hasCodeA && !hasCodeB) {
+            const dateA = new Date(a.created_at || 0).getTime() || 0;
+            const dateB = new Date(b.created_at || 0).getTime() || 0;
+            return dateA - dateB;
+          }
           return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
         });
         

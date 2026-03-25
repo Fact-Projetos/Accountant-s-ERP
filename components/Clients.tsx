@@ -166,13 +166,18 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
       if (data) {
         // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
         const sorted = [...data].sort((a: any, b: any) => {
-          const codeA = a.code?.replace(/-/g, '').trim() || '';
-          const codeB = b.code?.replace(/-/g, '').trim() || '';
+          const codeA = String(a.code || '').replace(/-/g, '').trim();
+          const codeB = String(b.code || '').replace(/-/g, '').trim();
           const hasCodeA = codeA.length > 0;
           const hasCodeB = codeB.length > 0;
+
           if (hasCodeA && !hasCodeB) return -1;
           if (!hasCodeA && hasCodeB) return 1;
-          if (!hasCodeA && !hasCodeB) return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          if (!hasCodeA && !hasCodeB) {
+            const dateA = new Date(a.created_at || 0).getTime() || 0;
+            const dateB = new Date(b.created_at || 0).getTime() || 0;
+            return dateA - dateB;
+          }
           return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
         });
 
@@ -213,7 +218,8 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
           simplesNacionalCpf: item.simples_nacional_cpf || '',
           simplesNacionalAccess: item.simples_nacional_access || '',
           visibleViews: item.visible_views || [],
-          lastAccess: '-'
+          lastAccess: '-',
+          createdAt: item.created_at
         }));
         setClients(transformed);
         if (onDataUpdate) onDataUpdate(transformed);
@@ -227,7 +233,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
     }
   };
 
-  // Filter Logic + Sort by Sistema (code)
+  // Filter Logic + Universal Natural Sort
   const filteredClients = clients.filter(c => {
     const search = searchTerm.toLowerCase();
     const nameMatch = c.name?.toLowerCase().includes(search) ?? false;
@@ -236,8 +242,23 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
     const idMatch = String(c.clientSeqId || '').includes(search);
     return nameMatch || cnpjMatch || codeMatch || idMatch;
   }).sort((a, b) => {
-    const codeA = a.code || '';
-    const codeB = b.code || '';
+    const codeA = String(a.code || '').replace(/-/g, '').trim();
+    const codeB = String(b.code || '').replace(/-/g, '').trim();
+    const hasCodeA = codeA.length > 0;
+    const hasCodeB = codeB.length > 0;
+
+    // Both without code -> sort by date (oldest first, so newest append to bottom)
+    if (!hasCodeA && !hasCodeB) {
+      const dateA = new Date(a.createdAt || 0).getTime() || 0;
+      const dateB = new Date(b.createdAt || 0).getTime() || 0;
+      return dateA - dateB;
+    }
+    
+    // One without code -> that one goes to the bottom
+    if (!hasCodeA) return 1;
+    if (!hasCodeB) return -1;
+
+    // Both have codes, sort naturally (001, 002, 003...)
     return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
   });
 

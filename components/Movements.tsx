@@ -159,7 +159,7 @@ const Movements: React.FC<{
     try {
       const { data, error } = await supabase
         .from('companies')
-        .select('id, client_seq_id, name, code, city')
+        .select('id, client_seq_id, name, code, city, created_at')
         .order('client_seq_id', { ascending: true });
       if (error) { console.error('Error fetching clients:', error); return; }
       if (data) {
@@ -171,7 +171,11 @@ const Movements: React.FC<{
           const hasCodeB = codeB.length > 0;
           if (hasCodeA && !hasCodeB) return -1;
           if (!hasCodeA && hasCodeB) return 1;
-          if (!hasCodeA && !hasCodeB) return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          if (!hasCodeA && !hasCodeB) {
+            const dateA = new Date(a.created_at || 0).getTime() || 0;
+            const dateB = new Date(b.created_at || 0).getTime() || 0;
+            return dateA - dateB;
+          }
           return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
         });
         const mapped = sorted.map((item: any, idx: number) => ({
@@ -222,8 +226,7 @@ const Movements: React.FC<{
           status: (found?.status as any) || 'Sem movimento'
         };
       });
-      // Sort the movements list using clientSeqId (from Database index)
-      displayList.sort((a, b) => a.clientSeqId - b.clientSeqId);
+      // displayList is already naturally sorted based on the clients array order
       setMovements(displayList);
     } catch (error) {
       console.error('Error fetching movements:', error);

@@ -54,6 +54,7 @@ export interface Client {
   lastAccess?: string;
   // Permissions
   visibleViews?: ViewState[];
+  createdAt?: string;
 }
 
 export interface NewsItem {
