@@ -68,6 +68,7 @@ const fmtShort = (v: number) => v === 0 ? '-' : v.toLocaleString('pt-BR', { mini
 const AccountantFinancial: React.FC = () => {
     const currentDate = new Date();
     const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+    const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
     const [companies, setCompanies] = useState<Company[]>([]);
     const [records, setRecords] = useState<FinancialRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -298,11 +299,6 @@ const AccountantFinancial: React.FC = () => {
                             <p className="text-xs text-slate-500 font-bold">Cód: {selectedCompany.client_seq_id ? String(selectedCompany.client_seq_id).padStart(3, '0') : '—'} • Ano: {selectedYear}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => setSelectedYear(y => y - 1)} className="p-1.5 hover:bg-slate-100 rounded-lg border border-slate-200"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
-                        <span className="text-sm font-black text-slate-700 min-w-[50px] text-center">{selectedYear}</span>
-                        <button onClick={() => setSelectedYear(y => y + 1)} className="p-1.5 hover:bg-slate-100 rounded-lg border border-slate-200"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
-                    </div>
                 </div>
 
                 {/* Annual Grid */}
@@ -359,18 +355,9 @@ const AccountantFinancial: React.FC = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-3 py-2 text-center">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <button onClick={(e) => { e.stopPropagation(); openMonthEdit(d.m); }} className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-all" title="Editar">
-                                                            <Edit className="w-3.5 h-3.5" />
-                                                        </button>
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(selectedCompany!, d.rec, d.m, { mensalidade: d.monthlyFee, folha: d.payrollFee, extras: d.extrasTotal }); }} 
-                                                            className="p-1 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded transition-all"
-                                                            title="Enviar cobrança via WhatsApp"
-                                                        >
-                                                            <MessageSquare className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    </div>
+                                                    <button onClick={(e) => { e.stopPropagation(); openMonthEdit(d.m); }} className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-all" title="Editar">
+                                                        <Edit className="w-3.5 h-3.5" />
+                                                    </button>
                                                 </td>
                                             </tr>
 
@@ -617,9 +604,20 @@ Atenciosamente,
                     <p className="text-slate-500 text-sm">Gestão mensal de mensalidades e serviços avulsos.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => setSelectedYear(y => y - 1)} className="p-1.5 hover:bg-slate-100 rounded-lg border border-slate-200"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
-                    <span className="text-sm font-black text-slate-700 min-w-[50px] text-center">{selectedYear}</span>
-                    <button onClick={() => setSelectedYear(y => y + 1)} className="p-1.5 hover:bg-slate-100 rounded-lg border border-slate-200"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
+                    <select 
+                        value={selectedMonth} 
+                        onChange={e => setSelectedMonth(parseInt(e.target.value))}
+                        className="text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-400"
+                    >
+                        {MONTHS_FULL.map((m, idx) => (
+                            <option key={m} value={idx + 1}>{m}</option>
+                        ))}
+                    </select>
+                    <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5">
+                        <button onClick={() => setSelectedYear(y => y - 1)} className="p-1 hover:bg-slate-50 rounded text-slate-400"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                        <span className="text-[11px] font-black text-slate-700 min-w-[40px] text-center">{selectedYear}</span>
+                        <button onClick={() => setSelectedYear(y => y + 1)} className="p-1 hover:bg-slate-50 rounded text-slate-400"><ChevronRight className="w-3.5 h-3.5" /></button>
+                    </div>
                     {activeTab === 'clients' && (
                         <button onClick={handleProvision} disabled={isLoading}
                             className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-all active:scale-95 text-xs ml-2">
@@ -696,7 +694,7 @@ Atenciosamente,
                                             })}
                                             <td className="px-2 py-1.5 text-center">
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company); }}
+                                                    onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth), selectedMonth); }}
                                                     className="p-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
                                                     title='Enviar cobrança via WhatsApp'
                                                 >
