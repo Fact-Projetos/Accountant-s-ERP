@@ -167,6 +167,7 @@ const App: React.FC = () => {
   }
 
   const renderView = () => {
+    console.log('[DEBUG] App renderView, currentView:', currentView, 'isLoggedIn:', isLoggedIn);
     switch (currentView) {
       // Accountant Views
       case ViewState.HOME:

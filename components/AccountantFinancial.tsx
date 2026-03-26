@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import {
     DollarSign, Search, Calendar, ChevronLeft, ChevronRight,
-    Loader2, Save, Plus, Edit, Trash2, ArrowLeft, X, Briefcase, MessageSquare
+    Loader2, Save, Plus, Edit, Trash2, ArrowLeft, X, Briefcase, MessageSquare, Users, FolderPlus
 } from 'lucide-react';
 
 // ─── Interfaces ────────────────────────────────────────────────
@@ -17,6 +17,13 @@ interface Company {
     due_day?: number;
     phone?: string;
     created_at?: string;
+    financial_group_id?: string | null;
+}
+
+interface FinancialGroup {
+    id: string;
+    name: string;
+    phone: string;
 }
 
 interface FinancialRecord {
@@ -97,10 +104,16 @@ const AccountantFinancial: React.FC = () => {
     const [standaloneServices, setStandaloneServices] = useState<any[]>([]);
     const [standaloneForm, setStandaloneForm] = useState<any | null>(null);
     const [isLoadingStandalone, setIsLoadingStandalone] = useState(false);
-
-    // ─── Fetch ───────────────────────────────────────────────────
+    
+    // Financial Groups State
+    const [groups, setGroups] = useState<FinancialGroup[]>([]);
+    const [isManagingGroups, setIsManagingGroups] = useState(false);
+    const [groupForm, setGroupForm] = useState<Partial<FinancialGroup> | null>(null);
+    const [isSavingGroup, setIsSavingGroup] = useState(false);
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
     useEffect(() => {
         fetchCompanies();
+        fetchFinancialGroups();
         fetchServiceTypes();
         // Safety timeout: prevent loading from getting stuck
         const timeout = setTimeout(() => {
@@ -113,7 +126,7 @@ const AccountantFinancial: React.FC = () => {
 
     const fetchCompanies = async () => {
         try {
-            const { data, error } = await supabase.from('companies').select('id, client_seq_id, code, name, status, client_date, monthly_fee, due_day, created_at, phone');
+            const { data, error } = await supabase.from('companies').select('id, client_seq_id, code, name, status, client_date, monthly_fee, due_day, created_at, phone, financial_group_id');
             if (error) { console.error('Error fetching companies:', error); }
             
             // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
@@ -142,6 +155,89 @@ const AccountantFinancial: React.FC = () => {
     const fetchServiceTypes = async () => {
         const { data } = await supabase.from('financial_service_types').select('*').order('name');
         setServiceTypes(data || []);
+    };
+
+    const fetchFinancialGroups = async () => {
+        const { data } = await supabase.from('financial_groups').select('*').order('name');
+        setGroups(data || []);
+    };
+
+    const saveGroup = async () => {
+        if (!groupForm?.name) return;
+        setIsSavingGroup(true);
+        try {
+            const payload = { 
+                name: groupForm.name, 
+                phone: groupForm.phone || '' 
+            } as any;
+            if (groupForm.id) {
+                const { error } = await supabase.from('financial_groups').update(payload).eq('id', groupForm.id);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('financial_groups').insert(payload);
+                if (error) throw error;
+            }
+            fetchFinancialGroups();
+            setGroupForm(null);
+        } catch (err: any) { alert(err.message); }
+        finally { setIsSavingGroup(false); }
+    };
+
+    const deleteGroup = async (id: string) => {
+        if (!confirm('Excluir este grupo? As empresas voltarão para a lista individual.')) return;
+        try {
+            await supabase.from('companies').update({ financial_group_id: null }).eq('financial_group_id', id);
+            await supabase.from('financial_groups').delete().eq('id', id);
+            fetchFinancialGroups();
+            fetchCompanies();
+        } catch (err: any) { alert(err.message); }
+    };
+
+    const toggleCompanyGroup = async (companyId: string, groupId: string | null) => {
+        try {
+            const { error } = await supabase.from('companies').update({ financial_group_id: groupId }).eq('id', companyId);
+            if (error) throw error;
+            fetchCompanies();
+        } catch (err: any) { alert(err.message); }
+    };
+
+    const handleWhatsAppGroupBilling = (group: FinancialGroup) => {
+        const groupMembers = companies.filter(c => c.financial_group_id === group.id);
+        if (groupMembers.length === 0) { alert('Este grupo não possui empresas.'); return; }
+        
+        const rawPhone = group.phone?.replace(/\D/g, '') || groupMembers[0].phone?.replace(/\D/g, '') || '';
+        if (!rawPhone) { alert('Configure um telefone para o grupo ou para a empresa principal.'); return; }
+        const phoneNumber = rawPhone.length <= 11 ? `55${rawPhone}` : rawPhone;
+
+        const monthName = MONTHS_FULL[selectedMonth - 1];
+        const monthNum = String(selectedMonth).padStart(2, '0');
+
+        let message = `Olá! 👋 Segue o resumo das mensalidades de *${monthName} de ${selectedYear}*:\n\n`;
+        let grandTotal = 0;
+
+        groupMembers.forEach(company => {
+            const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
+            const record = companyRecords.find(r => r.month === selectedMonth);
+
+            const mensalidade = record?.monthly_fee || company.monthly_fee || 0;
+            const folha = record?.payroll_fee || 0;
+            const extras = record?.extras || 0;
+            const total = mensalidade + folha + extras;
+            grandTotal += total;
+
+            message += `🏢 *${company.name}*\n`;
+            message += `📊 Mensalidade: ${fmt(mensalidade)}\n`;
+            message += `📄 Folha: ${fmt(folha)}\n`;
+            message += `🛠️ Outros: ${fmt(extras)}\n`;
+            message += `💰 *Subtotal: ${fmt(total)}*\n\n`;
+        });
+
+        message += `🌟 *TOTAL GERAL DO GRUPO: ${fmt(grandTotal)}*\n`;
+        const day = groupMembers[0].due_day || 10;
+        message += `📅 Vencimento: ${day}/${monthNum}/${selectedYear}\n\n`;
+        message += `Atenciosamente,\n**Fact Assessoria**`;
+
+        window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
     };
 
     const fetchAllRecords = async () => {
@@ -615,10 +711,16 @@ Atenciosamente,
                         <button onClick={() => setSelectedYear(y => y + 1)} className="p-1 hover:bg-slate-50 rounded text-slate-400"><ChevronRight className="w-3.5 h-3.5" /></button>
                     </div>
                     {activeTab === 'clients' && (
-                        <button onClick={handleProvision} disabled={isLoading}
-                            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-all active:scale-95 text-xs ml-2">
-                            <Plus className="w-4 h-4" /> Provisionar Ano
-                        </button>
+                        <div className="flex items-center gap-2 ml-2">
+                            <button onClick={() => setIsManagingGroups(true)}
+                                className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl font-bold shadow-sm transition-all active:scale-95 text-xs">
+                                <Users className="w-4 h-4 text-blue-500" /> Responsáveis
+                            </button>
+                            <button onClick={handleProvision} disabled={isLoading}
+                                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-all active:scale-95 text-xs">
+                                <Plus className="w-4 h-4" /> Provisionar Ano
+                            </button>
+                        </div>
                     )}
                     {activeTab === 'standalone' && (
                         <button onClick={() => setStandaloneForm({ client_name: '', client_document: '', service_name: '', description: '', value: 0, payment_status: 'Em Aberto', payment_date: null, due_date: null, notes: '' })}
@@ -628,6 +730,100 @@ Atenciosamente,
                     )}
                 </div>
             </div>
+
+            {isManagingGroups && (
+                <div className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0">
+                            <div>
+                                <h3 className="text-xl font-serif font-bold text-slate-800 flex items-center gap-2">
+                                    <Users className="w-5 h-5 text-blue-500" /> Grupos de Faturamento
+                                </h3>
+                                <p className="text-xs text-slate-500">Agrupe empresas para cobrança unificada.</p>
+                            </div>
+                            <button onClick={() => setIsManagingGroups(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 flex gap-6">
+                            {/* Left Side: Groups List */}
+                            <div className="w-1/2 flex flex-col gap-4">
+                                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Novo / Editar Responsável</h4>
+                                    <div className="flex flex-col gap-3">
+                                        <input 
+                                            placeholder="Nome do Responsável"
+                                            value={groupForm?.name || ''}
+                                            onChange={e => setGroupForm(p => ({ ...p, name: e.target.value }))}
+                                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-blue-400"
+                                        />
+                                        <input 
+                                            placeholder="WhatsApp (ex: 21999999999)"
+                                            value={groupForm?.phone || ''}
+                                            onChange={e => setGroupForm(p => ({ ...p, phone: e.target.value }))}
+                                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-blue-400"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={saveGroup} disabled={isSavingGroup}
+                                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs transition-all disabled:opacity-50"
+                                            >
+                                                {isSavingGroup ? 'Salvando...' : groupForm?.id ? 'Atualizar' : 'Criar Grupo'}
+                                            </button>
+                                            {groupForm && (
+                                                <button onClick={() => setGroupForm(null)} className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-600 rounded-xl text-xs">Cancelar</button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Grupos Cadastrados</h4>
+                                    {groups.length === 0 && <p className="text-xs text-slate-400 italic">Nenhum grupo criado.</p>}
+                                    {groups.map(g => (
+                                        <div key={g.id} className={`p-3 rounded-2xl border transition-all flex items-center justify-between ${groupForm?.id === g.id ? 'border-blue-400 bg-blue-50' : 'border-slate-100 bg-white hover:border-slate-300'}`}>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-700">{g.name}</p>
+                                                <p className="text-[10px] text-blue-500 font-mono italic">{g.phone || 'Sem telefone'}</p>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => setGroupForm(g)} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg"><Edit className="w-3.5 h-3.5" /></button>
+                                                <button onClick={() => deleteGroup(g.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Right Side: Assignment */}
+                            <div className="w-1/2 bg-slate-50 rounded-3xl p-6 border border-slate-200 overflow-hidden flex flex-col">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Empresas e Associações</h4>
+                                <div className="flex-1 overflow-y-auto pr-2 flex flex-col gap-2">
+                                    {companies.map(c => (
+                                        <div key={c.id} className="bg-white p-3 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
+                                            <div>
+                                                <p className="text-xs font-bold text-slate-800">{c.name}</p>
+                                                <p className="text-[9px] text-slate-400">{c.code || 'S/C'}</p>
+                                            </div>
+                                            <select 
+                                                value={c.financial_group_id || ''} 
+                                                onChange={e => toggleCompanyGroup(c.id, e.target.value || null)}
+                                                className="text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none"
+                                            >
+                                                <option value="">Sem Grupo</option>
+                                                {groups.map(g => (
+                                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Tab Switcher */}
             <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 w-fit">
@@ -649,9 +845,9 @@ Atenciosamente,
                         <table className="w-full border-collapse">
                             <thead className="sticky top-0 z-10">
                                 <tr className="bg-slate-50 border-b-2 border-slate-200">
+                                    <th className="w-8 px-2 py-2.5 border-r border-slate-200"></th>
                                     <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">ID</span></th>
-                                    <th className="w-20 px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Sistema</span></th>
-                                    <th className="min-w-[180px] px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Cliente</span></th>
+                                    <th className="min-w-[180px] px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Cliente / Responsável</span></th>
                                     <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-right"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Mensalidade</span></th>
                                     <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-center"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Venc.</span></th>
                                     {MONTHS.map(m => (
@@ -664,13 +860,124 @@ Atenciosamente,
                             </thead>
                             <tbody>
                                 {isLoading && <tr><td colSpan={18} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" /></td></tr>}
-                                {!isLoading && filteredCompanies.map((company, idx) => {
+                                
+                                {!isLoading && groups.map(group => {
+                                    const groupMembers = filteredCompanies.filter(c => c.financial_group_id === group.id);
+                                    if (groupMembers.length === 0) return null;
+                                    const isExpanded = expandedGroups[group.id];
+                                    
+                                    return (
+                                        <React.Fragment key={group.id}>
+                                            <tr onClick={() => setExpandedGroups(p => ({ ...p, [group.id]: !isExpanded }))}
+                                                className="border-b border-slate-100 hover:bg-blue-50/30 cursor-pointer bg-blue-50/10 group transition-all"
+                                            >
+                                                <td className="px-2 py-3 text-center border-r border-slate-100">
+                                                    <div className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+                                                        <ChevronRight className="w-4 h-4 text-blue-500" />
+                                                    </div>
+                                                </td>
+                                                <td className="px-2 py-3 text-center border-r border-slate-100">
+                                                    <Users className="w-3.5 h-3.5 text-blue-400 mx-auto" />
+                                                </td>
+                                                <td className="px-2 py-3 border-r border-slate-100">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[12px] font-black text-slate-800 uppercase flex items-center gap-1.5 tracking-tight">
+                                                            {group.name} 
+                                                            <span className="bg-blue-100 text-blue-600 text-[8px] px-1.5 py-0.5 rounded-full font-black">GRUPO</span>
+                                                        </span>
+                                                        <span className="text-[10px] text-blue-500 font-medium">{group.phone || 'Sem telefone principal'}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-2 py-3 border-r border-slate-100 text-right">
+                                                    <span className="text-[10px] font-mono font-bold text-blue-600">
+                                                        {fmt(groupMembers.reduce((sum, c) => sum + (c.monthly_fee || 0), 0))}
+                                                    </span>
+                                                </td>
+                                                <td className="px-2 py-3 border-r border-slate-100 text-center">
+                                                    <span className="text-[10px] font-mono font-bold text-slate-500">{groupMembers[0]?.due_day || '-'}</span>
+                                                </td>
+                                                {MONTHS.map((_, mIdx) => {
+                                                    const someUnpaid = groupMembers.some(company => {
+                                                        const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
+                                                        const rec = companyRecords.find(r => r.month === mIdx + 1);
+                                                        return !rec || rec.amount_paid < (rec.monthly_fee + rec.payroll_fee + (rec.extras || 0));
+                                                    });
+                                                    const somePaid = groupMembers.some(company => {
+                                                        const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
+                                                        const rec = companyRecords.find(r => r.month === mIdx + 1);
+                                                        return rec && rec.amount_paid >= (rec.monthly_fee + rec.payroll_fee + (rec.extras || 0));
+                                                    });
+
+                                                    return (
+                                                        <td key={mIdx} className="px-1 py-1.5 border-r border-slate-100 last:border-r-0 text-center">
+                                                            <div className={`w-3 h-3 rounded-full mx-auto ${!someUnpaid ? 'bg-green-500' : somePaid ? 'bg-amber-400' : 'bg-red-500'}`} />
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="px-2 py-1.5 text-center">
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleWhatsAppGroupBilling(group); }}
+                                                        className="p-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-all"
+                                                        title="Cobrança Consolidada"
+                                                    >
+                                                        <MessageSquare className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+
+                                            {isExpanded && groupMembers.map((company, cIdx) => {
+                                                const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
+                                                return (
+                                                    <tr key={company.id} onClick={() => fetchClientDetail(company)} className="border-b border-slate-50 hover:bg-slate-50/80 cursor-pointer text-slate-600 bg-white/50">
+                                                        <td className="px-2 py-2 text-center border-r border-slate-100/50"></td>
+                                                        <td className="px-2 py-2 text-center border-r border-slate-100/50">
+                                                            <span className="text-[10px] font-mono font-bold text-slate-400">#{String(cIdx + 1).padStart(2, '0')}</span>
+                                                        </td>
+                                                        <td className="px-2 py-2 border-r border-slate-100/50 pl-6 relative">
+                                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-200" />
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[11px] font-bold text-slate-700 tracking-tight leading-none uppercase">{company.name}</span>
+                                                                <span className="text-[9px] text-slate-400 font-medium">Cod: {company.code || 'S/C'}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-2 py-2 border-r border-slate-100/50 text-right">
+                                                            <span className="text-[9px] font-mono font-bold text-slate-400">{fmt(company.monthly_fee || 0)}</span>
+                                                        </td>
+                                                        <td className="px-2 py-2 border-r border-slate-100/50 text-center">
+                                                            <span className="text-[9px] font-mono font-bold text-slate-400">{company.due_day || '-'}</span>
+                                                        </td>
+                                                        {MONTHS.map((_, mIdx) => {
+                                                            const rec = companyRecords.find(r => r.month === mIdx + 1);
+                                                            return (
+                                                                <td key={mIdx} className="px-1 py-1.5 border-r border-slate-100 last:border-r-0 text-center">
+                                                                    {rec && (
+                                                                        <div className={`w-2 h-2 rounded-full mx-auto ${rec.amount_paid >= (rec.monthly_fee + rec.payroll_fee + (rec.extras || 0)) ? 'bg-green-400' : 'bg-red-400'}`} />
+                                                                    )}
+                                                                    {!rec && <div className="w-2 h-2 rounded-full mx-auto bg-slate-100" />}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        <td className="px-2 py-1.5 text-center">
+                                                            {/* No individual WA button inside group expansion for cleaner look, or small one */}
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth), selectedMonth); }}
+                                                                className="p-1 text-slate-300 hover:text-green-500 transition-colors"
+                                                            >
+                                                                <MessageSquare className="w-3 h-3" />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </React.Fragment>
+                                    );
+                                })}
+
+                                {!isLoading && filteredCompanies.filter(c => !c.financial_group_id).map((company, idx) => {
                                     const companyRecords = records.filter(r => r.company_id === company.id);
                                     return (
                                         <tr key={company.id} className={`border-b border-slate-100 transition-colors cursor-pointer ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50`} onClick={() => fetchClientDetail(company)}>
-                                            <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">
-                                                {String(idx + 1).padStart(3, '0')}
-                                            </span></td>
+                                            <td className="px-2 py-1.5 border-r border-slate-100"></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">{company.code || '---'}</span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-bold text-slate-800 truncate block max-w-[220px]">{company.name}</span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100 text-right">
@@ -680,7 +987,8 @@ Atenciosamente,
                                                 <span className="text-[10px] font-mono font-bold text-slate-500">{company.due_day || '-'}</span>
                                             </td>
                                             {MONTHS.map((_, mIdx) => {
-                                                const rec = companyRecords.find(r => r.month === mIdx + 1);
+                                                const companyYearRecords = companyRecords.filter(r => r.year === selectedYear);
+                                                const rec = companyYearRecords.find(r => r.month === mIdx + 1);
                                                 return (
                                                     <td key={mIdx} className="px-1 py-1.5 border-r border-slate-100 last:border-r-0 text-center">
                                                         {rec && (
@@ -692,7 +1000,7 @@ Atenciosamente,
                                             })}
                                             <td className="px-2 py-1.5 text-center">
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth), selectedMonth); }}
+                                                    onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth && r.year === selectedYear), selectedMonth); }}
                                                     className="p-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
                                                     title='Enviar cobrança via WhatsApp'
                                                 >
@@ -709,8 +1017,8 @@ Atenciosamente,
                         <span className="text-[10px] font-bold text-slate-400">{filteredCompanies.length} cliente(s)</span>
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-green-500" /><span className="text-[9px] font-bold text-slate-500">Pago</span></div>
+                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-amber-400" /><span className="text-[9px] font-bold text-slate-500">Grupo Parcial</span></div>
                             <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-red-500" /><span className="text-[9px] font-bold text-slate-500">Pendente</span></div>
-                            <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-slate-200" /><span className="text-[9px] font-bold text-slate-500">Sem Lançamento</span></div>
                         </div>
                     </div>
                 </div>
