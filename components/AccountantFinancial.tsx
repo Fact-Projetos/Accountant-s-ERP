@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
+import { parseOfx, OfxTransaction } from '../services/ofxParser';
 import {
     DollarSign, Search, Calendar, ChevronLeft, ChevronRight,
-    Loader2, Save, Plus, Edit, Trash2, ArrowLeft, X, Briefcase, MessageSquare, Users, FolderPlus, TrendingUp
+    Loader2, Save, Plus, Edit, Trash2, ArrowLeft, X, Briefcase, MessageSquare, Users, FolderPlus, TrendingUp, RefreshCw, Upload
 } from 'lucide-react';
 
 // ─── Interfaces ────────────────────────────────────────────────
@@ -18,6 +19,7 @@ interface Company {
     phone?: string;
     created_at?: string;
     financial_group_id?: string | null;
+    responsibleName?: string;
 }
 
 interface FinancialGroup {
@@ -99,8 +101,131 @@ const AccountantFinancial: React.FC = () => {
     // New service entry
     const [newService, setNewService] = useState<{ typeId: string; name: string; value: number; notes: string }>({ typeId: '', name: '', value: 0, notes: '' });
 
+    // Bank Reconciliation (OFX)
+    const [activeTab, setActiveTab] = useState<'clients' | 'standalone' | 'reconciler'>('clients');
+    const [ofxTransactions, setOfxTransactions] = useState<OfxTransaction[]>([]);
+    const [reconcileMatches, setReconcileMatches] = useState<Record<string, string>>({}); // transactionId -> companyId
+    const [isReconciling, setIsReconciling] = useState(false);
+    const [ofxUploadError, setOfxUploadError] = useState<string | null>(null);
+
+    const handleOfxUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setOfxUploadError(null);
+        setIsReconciling(true);
+        try {
+            const text = await file.text();
+            const txs = parseOfx(text);
+            
+            // Only keep positive transactions (inflows/deposits)
+            const inflows = txs.filter(t => t.amount > 0);
+            
+            if (inflows.length === 0) {
+                setOfxUploadError("Nenhum lançamento de entrada (venda/pagamento) encontrado no arquivo.");
+            } else {
+                setOfxTransactions(inflows);
+                
+                // Auto-match logic
+                const newMatches: Record<string, string> = {};
+                inflows.forEach(tx => {
+                    const match = findCompanyMatch(tx);
+                    if (match) newMatches[tx.id] = match.id;
+                });
+                setReconcileMatches(newMatches);
+            }
+        } catch (err) {
+            console.error("Error parsing OFX:", err);
+            setOfxUploadError("Erro ao processar o arquivo OFX. Verifique o formato.");
+        } finally {
+            setIsReconciling(false);
+        }
+    };
+
+    const findCompanyMatch = (tx: OfxTransaction) => {
+        const description = (tx.name + " " + tx.memo).toLowerCase();
+        
+        // Exact match or includes (case insensitive)
+        return companies.find(c => {
+            const name = c.name.toLowerCase();
+            const tradeName = (c.tradeName || '').toLowerCase();
+            const responsible = (c.responsibleName || '').toLowerCase();
+            const code = (c.code || '').toLowerCase();
+            
+            return (
+                (name && description.includes(name)) ||
+                (tradeName && description.includes(tradeName)) ||
+                (responsible && description.includes(responsible)) ||
+                (code && description === code)
+            );
+        });
+    };
+
+    const confirmReconciliation = async (tx: OfxTransaction) => {
+        const companyId = reconcileMatches[tx.id];
+        if (!companyId) return;
+
+        setIsSaving(true);
+        try {
+            const date = new Date(tx.date);
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+
+            // Find existing record or create if missing
+            const { data: existing, error: fetchErr } = await supabase
+                .from('financial_records')
+                .select('*')
+                .eq('company_id', companyId)
+                .eq('year', year)
+                .eq('month', month)
+                .maybeSingle();
+
+            if (fetchErr) throw fetchErr;
+
+            if (existing) {
+                const { error: updateErr } = await supabase
+                    .from('financial_records')
+                    .update({
+                        amount_paid: tx.amount,
+                        payment_date: date.toISOString().split('T')[0],
+                        status: 'Pago',
+                        notes: (existing.notes || '') + '\n[Conciliado via OFX]'
+                    })
+                    .eq('id', existing.id);
+                if (updateErr) throw updateErr;
+            } else {
+                // Determine company info for placeholder values
+                const company = companies.find(c => c.id === companyId);
+                const { error: insertErr } = await supabase
+                    .from('financial_records')
+                    .insert([{
+                        company_id: companyId,
+                        year,
+                        month,
+                        monthly_fee: company?.monthly_fee || 0,
+                        payroll_fee: 0,
+                        extras: 0,
+                        amount_paid: tx.amount,
+                        payment_date: date.toISOString().split('T')[0],
+                        status: 'Pago',
+                        notes: '[Conciliado via OFX]',
+                        previous_balance: 0
+                    }]);
+                if (insertErr) throw insertErr;
+            }
+
+            // Remove from list after success
+            setOfxTransactions(prev => prev.filter(t => t.id !== tx.id));
+            await fetchAllRecords(); // Refresh dashboard
+        } catch (err) {
+            console.error("Reconciliation error:", err);
+            alert("Erro ao confirmar conciliação.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     // Standalone Tab State
-    const [activeTab, setActiveTab] = useState<'clients' | 'standalone'>('clients');
     const [standaloneServices, setStandaloneServices] = useState<any[]>([]);
     const [standaloneForm, setStandaloneForm] = useState<any | null>(null);
     const [isLoadingStandalone, setIsLoadingStandalone] = useState(false);
@@ -170,6 +295,7 @@ const AccountantFinancial: React.FC = () => {
                 created_at: c.created_at,
                 phone: c.phone || '',
                 financial_group_id: c.financial_group_id,
+                responsibleName: c.responsible_name || '',
                 temp_seq_id: idx + 1
             }));
             
@@ -864,6 +990,9 @@ Atenciosamente,
                 <button onClick={() => setActiveTab('standalone')} className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${activeTab === 'standalone' ? 'bg-white shadow-sm text-purple-700' : 'text-slate-400 hover:text-slate-600'}`}>
                     <Briefcase className="w-3 h-3 inline mr-1" />Serviços Avulsos ({standaloneServices.length})
                 </button>
+                <button onClick={() => setActiveTab('reconciler')} className={`px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${activeTab === 'reconciler' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                    <RefreshCw className="w-3 h-3 inline mr-1" />Conciliador
+                </button>
             </div>
 
             {activeTab === 'clients' && (
@@ -1304,6 +1433,105 @@ Atenciosamente,
                             Total: {fmt(standaloneServices.reduce((s: number, sv: any) => s + (sv.value || 0), 0))}
                         </span>
                     </div>
+                </div>
+            )}
+
+            {activeTab === 'reconciler' && (
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col flex-1 min-h-0">
+                    <div className="p-8 flex flex-col items-center justify-center border-b border-slate-100 bg-slate-50/30">
+                        <div className="w-full max-w-xl text-center space-y-4">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-orange-100 text-orange-600 mb-2">
+                                <RefreshCw className={`w-8 h-8 ${isReconciling ? 'animate-spin' : ''}`} />
+                            </div>
+                            <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Conciliador Bancário OFX</h2>
+                            <p className="text-xs text-slate-500 font-medium">Arraste seu arquivo .ofx ou clique no botão abaixo para identificar pagamentos automaticamente.</p>
+                            
+                            <div className="relative group">
+                                <input 
+                                    type="file" 
+                                    accept=".ofx" 
+                                    onChange={handleOfxUpload}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                    disabled={isReconciling}
+                                />
+                                <div className="border-2 border-dashed border-slate-200 group-hover:border-orange-300 rounded-2xl p-8 transition-all bg-white group-hover:bg-orange-50/30">
+                                    <Upload className="w-6 h-6 text-slate-300 mx-auto mb-2 group-hover:text-orange-400" />
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest group-hover:text-orange-500">Selecionar arquivo OFX</span>
+                                </div>
+                            </div>
+                            
+                            {ofxUploadError && (
+                                <p className="text-[10px] font-bold text-red-500 bg-red-50 py-2 px-4 rounded-lg">{ofxUploadError}</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {ofxTransactions.length > 0 && (
+                        <div className="flex-1 overflow-auto">
+                            <table className="w-full border-collapse">
+                                <thead className="sticky top-0 z-20">
+                                    <tr className="bg-slate-800 text-white">
+                                        <th className="text-left px-4 py-3 border-r border-slate-700 font-black text-[9px] uppercase tracking-widest">Data</th>
+                                        <th className="text-left px-4 py-3 border-r border-slate-700 font-black text-[9px] uppercase tracking-widest">Descrição / Memo</th>
+                                        <th className="text-right px-4 py-3 border-r border-slate-700 font-black text-[9px] uppercase tracking-widest">Valor</th>
+                                        <th className="text-left px-4 py-3 border-r border-slate-700 font-black text-[9px] uppercase tracking-widest">Correspondente Sugerido</th>
+                                        <th className="text-center px-4 py-3 font-black text-[9px] uppercase tracking-widest">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {ofxTransactions.map((tx) => {
+                                        const companyId = reconcileMatches[tx.id];
+                                        const isMatched = !!companyId;
+                                        
+                                        return (
+                                            <tr key={tx.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                                <td className="px-4 py-3 text-[11px] font-mono text-slate-500 border-r border-slate-100">
+                                                    {tx.date.toLocaleDateString('pt-BR')}
+                                                </td>
+                                                <td className="px-4 py-3 border-r border-slate-100">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[11px] font-bold text-slate-700">{tx.name}</span>
+                                                        <span className="text-[9px] text-slate-400 italic">{tx.memo}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-mono font-bold text-green-600 text-[11px] border-r border-slate-100">
+                                                    {fmt(tx.amount)}
+                                                </td>
+                                                <td className="px-4 py-3 border-r border-slate-100">
+                                                    <select 
+                                                        value={companyId || ''} 
+                                                        onChange={(e) => setReconcileMatches(prev => ({ ...prev, [tx.id]: e.target.value }))}
+                                                        className={`w-full bg-transparent text-[11px] font-bold outline-none cursor-pointer p-1 rounded border-b-2 ${isMatched ? 'border-green-400 text-slate-800' : 'border-slate-200 text-slate-400'}`}
+                                                    >
+                                                        <option value="">-- Não identificado --</option>
+                                                        {companies.map(c => (
+                                                            <option key={c.id} value={c.id}>{c.name} {c.code ? `(${c.code})` : ''}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <button 
+                                                        onClick={() => confirmReconciliation(tx)}
+                                                        disabled={!isMatched || isSaving}
+                                                        className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isMatched ? 'bg-green-600 text-white hover:bg-green-700 shadow-sm' : 'bg-slate-100 text-slate-300'}`}
+                                                    >
+                                                        {isSaving ? '...' : 'Confirmar'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {ofxTransactions.length === 0 && !isReconciling && (
+                        <div className="flex-1 flex flex-col items-center justify-center p-20 text-center opacity-30 grayscale">
+                            <Calendar className="w-12 h-12 mb-4" />
+                            <p className="text-sm font-bold uppercase tracking-widest">Aguardando arquivo...</p>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

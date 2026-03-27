@@ -6,7 +6,8 @@ export interface Client {
   code?: string;
   cnpj: string;
   name: string; // Razão Social
-  tradeName?: string; // Nome Fantasia
+   tradeName?: string; // Nome Fantasia
+  responsibleName?: string; // Responsável pela Conciliação
 
   // Address
   zipCode?: string; // CEP

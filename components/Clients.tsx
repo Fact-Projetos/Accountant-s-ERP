@@ -189,6 +189,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
           code: item.code || '',
           name: item.name,
           tradeName: item.trade_name || '',
+          responsibleName: item.responsible_name || '',
           cnpj: item.cnpj,
           email: item.email || '',
           status: item.status || 'Ativo',
@@ -392,6 +393,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
         client_seq_id: seqId,
         name: formData.name,
         trade_name: formData.tradeName,
+        responsible_name: formData.responsibleName,
         cnpj: formattedCnpj,
         code: formData.code,
         status: formData.status,
@@ -583,7 +585,17 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                 className="col-span-5 border-r-0"
               />
             </div>
-            <div className="grid grid-cols-12">
+            <div className="grid grid-cols-12 border-t border-slate-200">
+              <InputField
+                label="Responsável (Para Conciliação OFX)"
+                name="responsibleName"
+                value={formData.responsibleName || ''}
+                onChange={handleInputChange}
+                placeholder="Ex: Nome que aparece no extrato bancário"
+                className="col-span-12 border-r-0"
+              />
+            </div>
+            <div className="grid grid-cols-12 border-t border-slate-200">
               <InputField
                 label="Nome Fantasia"
                 name="tradeName"
