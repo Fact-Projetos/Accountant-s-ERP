@@ -383,11 +383,10 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
         seqId = lastSeqId + 1;
       }
 
-      const companyData = {
+      const companyData: Record<string, any> = {
         client_seq_id: seqId,
         name: formData.name,
         trade_name: formData.tradeName,
-        responsible_name: formData.responsibleName,
         cnpj: formattedCnpj,
         code: formData.code,
         status: formData.status,
@@ -421,6 +420,11 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
         simples_nacional_access: formData.simplesNacionalAccess,
         visible_views: formData.visibleViews,
       };
+
+      // Only include responsible_name if the column exists (migration applied)
+      if (formData.responsibleName) {
+        companyData.responsible_name = formData.responsibleName;
+      }
 
       console.log('Preparing to save to Supabase...');
       console.log('Target ID:', formData.id || 'New Record');
