@@ -70,7 +70,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
   const [searchTerm, setSearchTerm] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(!initialData || initialData.length === 0);
+  const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
 
@@ -92,15 +92,9 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
   }, [initialData]);
 
   useEffect(() => {
-    if (clients.length === 0) {
+    if (!initialData || initialData.length === 0) {
       fetchClients();
     }
-    // Safety timeout: prevent loading from getting stuck
-    const timeout = setTimeout(() => {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }, 10000);
-    return () => clearTimeout(timeout);
   }, []);
 
   // Use node-forge to automatically extract certificate dates when file and password are provided
@@ -1097,7 +1091,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                       {!hiddenColumns.includes('cidade') && (
                         <td className="px-2 py-1.5 border-r border-slate-100">
                           <span className="text-[11px] text-slate-600 font-medium truncate block">
-                            {client.city ? `${client.city}/${client.state}` : <span className="text-slate-300 italic">—</span>}
+                            {client.city ? `${client.city}/${client.state || ''}` : <span className="text-slate-300 italic">—</span>}
                           </span>
                         </td>
                       )}
