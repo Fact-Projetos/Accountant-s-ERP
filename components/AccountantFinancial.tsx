@@ -1017,7 +1017,7 @@ Atenciosamente,
                                 </tr>
                             </thead>
                             <tbody>
-                                {isLoading && <tr><td colSpan={18} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" /></td></tr>}
+                                {isLoading && <tr><td colSpan={9} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" /></td></tr>}
                                 
                                 {!isLoading && groups.map(group => {
                                     const groupMembers = filteredCompanies.filter(c => c.financial_group_id === group.id);
@@ -1083,13 +1083,15 @@ Atenciosamente,
                                                     </span>
                                                 </td>
                                                 <td className="px-2 py-1.5 text-center">
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleWhatsAppGroupBilling(group); }}
-                                                        className="p-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-all"
-                                                        title="Cobrança Consolidada"
-                                                    >
-                                                        <MessageSquare className="w-4 h-4" />
-                                                    </button>
+                                                    <div className="flex items-center justify-center gap-0.5">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleWhatsAppGroupBilling(group); }}
+                                                            className="p-1 text-slate-300 hover:text-green-500 hover:bg-green-50 rounded-lg transition-all"
+                                                            title="Cobrança Consolidada"
+                                                        >
+                                                            <MessageSquare className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
 
@@ -1097,7 +1099,7 @@ Atenciosamente,
                                                 <>
                                                     {/* Group Summary Card for Screenshot/Reporting */}
                                                     <tr key={`summary-${group.id}`} className="bg-slate-50/80 border-b border-blue-100">
-                                                        <td colSpan={18} className="px-6 py-4">
+                                                <td colSpan={9} className="px-6 py-4">
                                                             <div className="bg-white rounded-2xl border-2 border-blue-200 shadow-xl p-6 max-w-4xl mx-auto flex flex-col gap-6 relative overflow-hidden">
                                                                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -mr-16 -mt-16 opacity-50 pointer-events-none" />
                                                                 
@@ -1257,12 +1259,22 @@ Atenciosamente,
                                                                     );
                                                                 })()}
                                                                 <td className="px-2 py-1.5 text-center">
-                                                                    <button 
-                                                                        onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth), selectedMonth); }}
-                                                                        className="p-1 text-slate-300 hover:text-green-500 transition-colors"
-                                                                    >
-                                                                        <MessageSquare className="w-3 h-3" />
-                                                                    </button>
+                                                                    <div className="flex items-center justify-center gap-0.5">
+                                                                        <button 
+                                                                            onClick={(e) => { e.stopPropagation(); fetchClientDetail(company); }}
+                                                                            className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-all"
+                                                                            title="Editar Lançamentos"
+                                                                        >
+                                                                            <Edit className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth), selectedMonth); }}
+                                                                            className="p-1 text-slate-300 hover:text-green-500 hover:bg-green-50 rounded transition-all"
+                                                                            title="WhatsApp"
+                                                                        >
+                                                                            <MessageSquare className="w-3 h-3" />
+                                                                        </button>
+                                                                    </div>
                                                                 </td>
                                                             </tr>
                                                         );
@@ -1316,13 +1328,22 @@ Atenciosamente,
                                                 );
                                             })()}
                                             <td className="px-2 py-1.5 text-center">
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth && r.year === selectedYear), selectedMonth); }}
-                                                    className="p-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
-                                                    title='Enviar cobrança via WhatsApp'
-                                                >
-                                                    <MessageSquare className="w-3.5 h-3.5" />
-                                                </button>
+                                                <div className="flex items-center justify-center gap-0.5">
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); fetchClientDetail(company); }}
+                                                        className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-all"
+                                                        title="Editar Lançamentos"
+                                                    >
+                                                        <Edit className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth && r.year === selectedYear), selectedMonth); }}
+                                                        className="p-1 text-slate-300 hover:text-green-500 hover:bg-green-50 rounded transition-all"
+                                                        title="WhatsApp"
+                                                    >
+                                                        <MessageSquare className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
