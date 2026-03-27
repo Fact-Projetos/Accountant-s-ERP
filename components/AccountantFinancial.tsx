@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import {
     DollarSign, Search, Calendar, ChevronLeft, ChevronRight,
-    Loader2, Save, Plus, Edit, Trash2, ArrowLeft, X, Briefcase, MessageSquare, Users, FolderPlus
+    Loader2, Save, Plus, Edit, Trash2, ArrowLeft, X, Briefcase, MessageSquare, Users, FolderPlus, TrendingUp
 } from 'lucide-react';
 
 // ─── Interfaces ────────────────────────────────────────────────
@@ -125,14 +125,26 @@ const AccountantFinancial: React.FC = () => {
     useEffect(() => { if (activeTab === 'standalone') fetchStandaloneServices(); }, [activeTab]);
 
     const fetchCompanies = async () => {
+        console.log('[DEBUG] fetchCompanies started');
         try {
-            const { data, error } = await supabase.from('companies').select('id, client_seq_id, code, name, status, client_date, monthly_fee, due_day, created_at, phone, financial_group_id');
-            if (error) { console.error('Error fetching companies:', error); }
+            // Simplified query to select everything to avoid potential schema mismatch issues
+            const { data, error } = await supabase
+                .from('companies')
+                .select('*')
+                .order('name');
+
+            if (error) { 
+                console.error('[DEBUG] fetchCompanies error:', error);
+                alert('Erro ao carregar empresas: ' + error.message);
+                return;
+            }
+
+            console.log('[DEBUG] fetchCompanies data:', data?.length || 0, 'rows retrieved');
             
             // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
             const sorted = (data || []).sort((a: any, b: any) => {
-                const codeA = a.code?.replace(/-/g, '').trim() || '';
-                const codeB = b.code?.replace(/-/g, '').trim() || '';
+                const codeA = String(a.code || '').replace(/-/g, '').trim();
+                const codeB = String(b.code || '').replace(/-/g, '').trim();
                 const hasCodeA = codeA.length > 0;
                 const hasCodeB = codeB.length > 0;
                 if (hasCodeA && !hasCodeB) return -1;
@@ -144,12 +156,31 @@ const AccountantFinancial: React.FC = () => {
                 }
                 return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
             });
-            const mapped = sorted.map((c: any, idx: number) => ({
-                ...c,
+
+            // Cast and ensure types
+            const mapped: Company[] = sorted.map((c: any, idx: number) => ({
+                id: c.id,
+                client_seq_id: c.client_seq_id || 0,
+                code: c.code || '',
+                name: c.name || 'Sem Nome',
+                status: c.status || 'Ativo',
+                client_date: c.client_date,
+                monthly_fee: Number(c.monthly_fee) || 0,
+                due_day: Number(c.due_day) || 10,
+                created_at: c.created_at,
+                phone: c.phone || '',
+                financial_group_id: c.financial_group_id,
                 temp_seq_id: idx + 1
             }));
+            
             setCompanies(mapped);
-        } catch (err) { console.error('Error:', err); setCompanies([]); }
+        } catch (err: any) {
+            console.error('[DEBUG] fetchCompanies crash:', err);
+            alert('Falha crítica ao carregar empresas. Verifique o console.');
+            setCompanies([]);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const fetchServiceTypes = async () => {
@@ -864,8 +895,19 @@ Atenciosamente,
                                 {!isLoading && groups.map(group => {
                                     const groupMembers = filteredCompanies.filter(c => c.financial_group_id === group.id);
                                     if (groupMembers.length === 0) return null;
-                                    const isExpanded = expandedGroups[group.id];
+                                    const isExpanded = !!expandedGroups[group.id];
                                     
+                                    const groupRecs = records.filter(r => groupMembers.some(m => m.id === r.company_id) && r.year === selectedYear);
+                                    const monthRecs = groupRecs.filter(r => r.month === selectedMonth);
+                                    const prevRecs = groupRecs.filter(r => r.month < selectedMonth);
+                                    const stats = {
+                                        monthlyTotal: monthRecs.reduce((sum, r) => sum + (Number(r.monthly_fee) || 0) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0), 0),
+                                        paymentTotal: monthRecs.reduce((sum, r) => sum + (Number(r.amount_paid) || 0), 0),
+                                        prevBalance: prevRecs.reduce((sum, r) => sum + ((Number(r.monthly_fee) || 0) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0)) - (Number(r.amount_paid) || 0), 0),
+                                        currentBalance: 0
+                                    };
+                                    stats.currentBalance = stats.prevBalance + stats.monthlyTotal - stats.paymentTotal;
+
                                     return (
                                         <React.Fragment key={group.id}>
                                             <tr onClick={() => setExpandedGroups(p => ({ ...p, [group.id]: !isExpanded }))}
@@ -925,50 +967,164 @@ Atenciosamente,
                                                 </td>
                                             </tr>
 
-                                            {isExpanded && groupMembers.map((company, cIdx) => {
-                                                const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
-                                                return (
-                                                    <tr key={company.id} onClick={() => fetchClientDetail(company)} className="border-b border-slate-50 hover:bg-slate-50/80 cursor-pointer text-slate-600 bg-white/50">
-                                                        <td className="px-2 py-2 text-center border-r border-slate-100/50"></td>
-                                                        <td className="px-2 py-2 text-center border-r border-slate-100/50">
-                                                            <span className="text-[10px] font-mono font-bold text-slate-400">#{String(cIdx + 1).padStart(2, '0')}</span>
-                                                        </td>
-                                                        <td className="px-2 py-2 border-r border-slate-100/50 pl-6 relative">
-                                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-200" />
-                                                            <div className="flex flex-col">
-                                                                <span className="text-[11px] font-bold text-slate-700 tracking-tight leading-none uppercase">{company.name}</span>
-                                                                <span className="text-[9px] text-slate-400 font-medium">Cod: {company.code || 'S/C'}</span>
+                                            {isExpanded && (
+                                                <>
+                                                    {/* Group Summary Card for Screenshot/Reporting */}
+                                                    <tr key={`summary-${group.id}`} className="bg-slate-50/80 border-b border-blue-100">
+                                                        <td colSpan={18} className="px-6 py-4">
+                                                            <div className="bg-white rounded-2xl border-2 border-blue-200 shadow-xl p-6 max-w-4xl mx-auto flex flex-col gap-6 relative overflow-hidden">
+                                                                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -mr-16 -mt-16 opacity-50 pointer-events-none" />
+                                                                
+                                                                <div className="flex items-center justify-between border-b border-slate-100 pb-4 relative">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="bg-blue-600 text-white p-2 rounded-lg shadow-lg">
+                                                                            <TrendingUp className="w-5 h-5" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">{group.name}</h3>
+                                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-0.5 flex items-center gap-1">
+                                                                                <Calendar className="w-3 h-3 text-blue-500" /> RESUMO FINANCEIRO • {MONTHS_FULL[selectedMonth - 1]} / {selectedYear}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <button 
+                                                                            onClick={() => window.print()}
+                                                                            className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl transition-all print:hidden"
+                                                                            title="Imprimir Resumo"
+                                                                        >
+                                                                            <Save className="w-4 h-4" />
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-4 gap-4 relative">
+                                                                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col text-center">
+                                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Saldo Anterior</span>
+                                                                        <span className={`text-sm font-mono font-bold ${stats.prevBalance < 0 ? 'text-red-600' : 'text-slate-600'}`}>
+                                                                            {fmt(stats.prevBalance)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-100 flex flex-col text-center">
+                                                                        <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Total Mensalidades</span>
+                                                                        <span className="text-sm font-mono font-bold text-blue-700">
+                                                                            {fmt(stats.monthlyTotal)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="bg-green-50/50 rounded-xl p-4 border border-green-100 flex flex-col text-center">
+                                                                        <span className="text-[10px] font-black text-green-500 uppercase tracking-widest mb-1">Pagamento Total</span>
+                                                                        <span className="text-sm font-mono font-bold text-green-700">
+                                                                            {fmt(stats.paymentTotal)}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 flex flex-col shadow-lg ring-2 ring-slate-800 ring-offset-2 ring-offset-white text-center">
+                                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 text-white/50">Saldo Atual</span>
+                                                                        <span className={`text-sm font-mono font-bold ${stats.currentBalance < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                                            {fmt(stats.currentBalance)}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Lista de Membros no Group Card */}
+                                                                <div className="mt-2 space-y-2 relative">
+                                                                    <div className="flex items-center gap-2 mb-2">
+                                                                        <div className="h-[2px] flex-1 bg-slate-100" />
+                                                                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Detalhes das Empresas</span>
+                                                                        <div className="h-[2px] flex-1 bg-slate-100" />
+                                                                    </div>
+                                                                    <div className="grid grid-cols-1 gap-1">
+                                                                        {groupMembers.map(member => {
+                                                                            const r = records.find(rec => rec.company_id === member.id && rec.month === selectedMonth && rec.year === selectedYear) || {};
+                                                                            const mBal = Number(r.monthly_fee) || 0;
+                                                                            const pBal = Number(r.payroll_fee) || 0;
+                                                                            const extraTotal = (r.extras || 0);
+                                                                            const totalDue = mBal + pBal + extraTotal;
+                                                                            
+                                                                            return (
+                                                                                <div key={member.id} className="flex items-center justify-between py-2 px-4 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100 group/item">
+                                                                                    <div className="flex items-center gap-3">
+                                                                                        <span className="text-[10px] font-mono text-slate-300 group-hover/item:text-blue-400 transition-colors">#{member.code || '---'}</span>
+                                                                                        <span className="text-[11px] font-bold text-slate-600 group-hover/item:text-slate-950 transition-colors">{member.name}</span>
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-4 text-[11px]">
+                                                                                        <div className="flex flex-col items-end">
+                                                                                            <span className="text-[8px] font-black text-slate-300 uppercase">A pagar</span>
+                                                                                            <span className="font-bold text-slate-500">{fmt(totalDue)}</span>
+                                                                                        </div>
+                                                                                        <div className="flex flex-col items-end min-w-[80px]">
+                                                                                            <span className="text-[8px] font-black text-slate-300 uppercase">Status</span>
+                                                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter ${r.status === 'Pago' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                                                                {r.status || 'Pendente'}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="border-t border-slate-100 pt-3">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex -space-x-2">
+                                                                            {groupMembers.map((c, i) => (
+                                                                                <div key={c.id} className="w-6 h-6 rounded-full bg-white border-2 border-slate-50 flex items-center justify-center shadow-sm" title={c.name}>
+                                                                                    <span className="text-[8px] font-black text-slate-400">{c.name[0]}</span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                        <p className="text-[9px] text-slate-400 font-bold uppercase italic">Fact Assessoria e Consultoria Empresarial</p>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </td>
-                                                        <td className="px-2 py-2 border-r border-slate-100/50 text-right">
-                                                            <span className="text-[9px] font-mono font-bold text-slate-400">{fmt(company.monthly_fee || 0)}</span>
-                                                        </td>
-                                                        <td className="px-2 py-2 border-r border-slate-100/50 text-center">
-                                                            <span className="text-[9px] font-mono font-bold text-slate-400">{company.due_day || '-'}</span>
-                                                        </td>
-                                                        {MONTHS.map((_, mIdx) => {
-                                                            const rec = companyRecords.find(r => r.month === mIdx + 1);
-                                                            return (
-                                                                <td key={mIdx} className="px-1 py-1.5 border-r border-slate-100 last:border-r-0 text-center">
-                                                                    {rec && (
-                                                                        <div className={`w-2 h-2 rounded-full mx-auto ${rec.amount_paid >= (rec.monthly_fee + rec.payroll_fee + (rec.extras || 0)) ? 'bg-green-400' : 'bg-red-400'}`} />
-                                                                    )}
-                                                                    {!rec && <div className="w-2 h-2 rounded-full mx-auto bg-slate-100" />}
-                                                                </td>
-                                                            );
-                                                        })}
-                                                        <td className="px-2 py-1.5 text-center">
-                                                            {/* No individual WA button inside group expansion for cleaner look, or small one */}
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth), selectedMonth); }}
-                                                                className="p-1 text-slate-300 hover:text-green-500 transition-colors"
-                                                            >
-                                                                <MessageSquare className="w-3 h-3" />
-                                                            </button>
-                                                        </td>
                                                     </tr>
-                                                );
-                                            })}
+
+                                                    {groupMembers.map((company, cIdx) => {
+                                                        const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
+                                                        return (
+                                                            <tr key={company.id} onClick={() => fetchClientDetail(company)} className="border-b border-slate-50 hover:bg-slate-50/80 cursor-pointer text-slate-600 bg-white/50">
+                                                                <td className="px-2 py-2 text-center border-r border-slate-100/50"></td>
+                                                                <td className="px-2 py-2 text-center border-r border-slate-100/50">
+                                                                    <span className="text-[10px] font-mono font-bold text-slate-400">#{String(cIdx + 1).padStart(2, '0')}</span>
+                                                                </td>
+                                                                <td className="px-2 py-2 border-r border-slate-100/50 pl-6 relative">
+                                                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-200" />
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[11px] font-bold text-slate-700 tracking-tight leading-none uppercase">{company.name}</span>
+                                                                        <span className="text-[9px] text-slate-400 font-medium">Cod: {company.code || 'S/C'}</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-2 py-2 border-r border-slate-100/50 text-right">
+                                                                    <span className="text-[9px] font-mono font-bold text-slate-400">{fmt(company.monthly_fee || 0)}</span>
+                                                                </td>
+                                                                <td className="px-2 py-2 border-r border-slate-100/50 text-center">
+                                                                    <span className="text-[9px] font-mono font-bold text-slate-400">{company.due_day || '-'}</span>
+                                                                </td>
+                                                                {MONTHS.map((_, mIdx) => {
+                                                                    const rec = companyRecords.find(r => r.month === mIdx + 1);
+                                                                    return (
+                                                                        <td key={mIdx} className="px-1 py-1.5 border-r border-slate-100 last:border-r-0 text-center">
+                                                                            {rec && (
+                                                                                <div className={`w-2 h-2 rounded-full mx-auto ${rec.amount_paid >= (rec.monthly_fee + rec.payroll_fee + (rec.extras || 0)) ? 'bg-green-400' : 'bg-red-400'}`} />
+                                                                            )}
+                                                                            {!rec && <div className="w-2 h-2 rounded-full mx-auto bg-slate-100" />}
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                                <td className="px-2 py-1.5 text-center">
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth), selectedMonth); }}
+                                                                        className="p-1 text-slate-300 hover:text-green-500 transition-colors"
+                                                                    >
+                                                                        <MessageSquare className="w-3 h-3" />
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </>
+                                            )}
                                         </React.Fragment>
                                     );
                                 })}
