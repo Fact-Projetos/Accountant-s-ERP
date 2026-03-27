@@ -1008,13 +1008,11 @@ Atenciosamente,
                                     <th className="w-8 px-2 py-2.5 border-r border-slate-200"></th>
                                     <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">ID</span></th>
                                     <th className="min-w-[180px] px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Cliente / Responsável</span></th>
+                                    <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-center"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Data Cliente</span></th>
+                                    <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-right"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Saldo Anterior</span></th>
                                     <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-right"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Mensalidade</span></th>
-                                    <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-center"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Venc.</span></th>
-                                    {MONTHS.map(m => (
-                                        <th key={m} className="w-16 px-1 py-2.5 border-r border-slate-200 text-center">
-                                            <span className="text-[9px] font-black text-slate-500 uppercase">{m}</span>
-                                        </th>
-                                    ))}
+                                    <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-right"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Valor Pago</span></th>
+                                    <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-right"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Saldo Atual</span></th>
                                     <th className="w-16 px-2 py-2.5 text-center"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Ação</span></th>
                                 </tr>
                             </thead>
@@ -1059,32 +1057,31 @@ Atenciosamente,
                                                         <span className="text-[10px] text-blue-500 font-medium">{group.phone || 'Sem telefone principal'}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-2 py-3 border-r border-slate-100 text-right">
-                                                    <span className="text-[10px] font-mono font-bold text-blue-600">
-                                                        {fmt(groupMembers.reduce((sum, c) => sum + (c.monthly_fee || 0), 0))}
+                                                <td className="px-2 py-3 border-r border-slate-100 text-center">
+                                                    <span className="text-[10px] font-mono font-bold text-slate-400">
+                                                        {groupMembers[0]?.client_date ? new Date(groupMembers[0].client_date).toLocaleDateString('pt-BR') : '-'}
                                                     </span>
                                                 </td>
-                                                <td className="px-2 py-3 border-r border-slate-100 text-center">
-                                                    <span className="text-[10px] font-mono font-bold text-slate-500">{groupMembers[0]?.due_day || '-'}</span>
+                                                <td className="px-2 py-3 border-r border-slate-100 text-right">
+                                                    <span className={`text-[10px] font-mono font-bold ${stats.prevBalance < 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                                                        {fmt(stats.prevBalance)}
+                                                    </span>
                                                 </td>
-                                                {MONTHS.map((_, mIdx) => {
-                                                    const someUnpaid = groupMembers.some(company => {
-                                                        const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
-                                                        const rec = companyRecords.find(r => r.month === mIdx + 1);
-                                                        return !rec || rec.amount_paid < (rec.monthly_fee + rec.payroll_fee + (rec.extras || 0));
-                                                    });
-                                                    const somePaid = groupMembers.some(company => {
-                                                        const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
-                                                        const rec = companyRecords.find(r => r.month === mIdx + 1);
-                                                        return rec && rec.amount_paid >= (rec.monthly_fee + rec.payroll_fee + (rec.extras || 0));
-                                                    });
-
-                                                    return (
-                                                        <td key={mIdx} className="px-1 py-1.5 border-r border-slate-100 last:border-r-0 text-center">
-                                                            <div className={`w-3 h-3 rounded-full mx-auto ${!someUnpaid ? 'bg-green-500' : somePaid ? 'bg-amber-400' : 'bg-red-500'}`} />
-                                                        </td>
-                                                    );
-                                                })}
+                                                <td className="px-2 py-3 border-r border-slate-100 text-right">
+                                                    <span className="text-[10px] font-mono font-bold text-blue-600">
+                                                        {fmt(stats.monthlyTotal)}
+                                                    </span>
+                                                </td>
+                                                <td className="px-2 py-3 border-r border-slate-100 text-right">
+                                                    <span className="text-[10px] font-mono font-bold text-green-600">
+                                                        {fmt(stats.paymentTotal)}
+                                                    </span>
+                                                </td>
+                                                <td className="px-2 py-3 border-r border-slate-100 text-right">
+                                                    <span className={`text-[10px] font-mono font-bold ${stats.currentBalance < 0 ? 'text-red-500' : 'text-slate-800'}`}>
+                                                        {fmt(stats.currentBalance)}
+                                                    </span>
+                                                </td>
                                                 <td className="px-2 py-1.5 text-center">
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); handleWhatsAppGroupBilling(group); }}
@@ -1224,23 +1221,41 @@ Atenciosamente,
                                                                         <span className="text-[9px] text-slate-400 font-medium">Cod: {company.code || 'S/C'}</span>
                                                                     </div>
                                                                 </td>
-                                                                <td className="px-2 py-2 border-r border-slate-100/50 text-right">
-                                                                    <span className="text-[9px] font-mono font-bold text-slate-400">{fmt(company.monthly_fee || 0)}</span>
-                                                                </td>
                                                                 <td className="px-2 py-2 border-r border-slate-100/50 text-center">
-                                                                    <span className="text-[9px] font-mono font-bold text-slate-400">{company.due_day || '-'}</span>
+                                                                    <span className="text-[9px] font-mono font-bold text-slate-400">
+                                                                        {company.client_date ? new Date(company.client_date).toLocaleDateString('pt-BR') : '-'}
+                                                                    </span>
                                                                 </td>
-                                                                {MONTHS.map((_, mIdx) => {
-                                                                    const rec = companyRecords.find(r => r.month === mIdx + 1);
+                                                                {(() => {
+                                                                    const cRecs = records.filter(r => r.company_id === company.id && r.year === selectedYear);
+                                                                    const mRec = cRecs.find(r => r.month === selectedMonth);
+                                                                    const pRecs = cRecs.filter(r => r.month < selectedMonth);
+                                                                    const pBal = pRecs.reduce((sum, r) => sum + ((Number(r.monthly_fee) || 0) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0)) - (Number(r.amount_paid) || 0), 0);
+                                                                    const curDue = mRec ? (Number(mRec.monthly_fee) || 0) + (Number(mRec.payroll_fee) || 0) + (Number(mRec.extras) || 0) : (company.monthly_fee || 0);
+                                                                    const curPaid = mRec ? (Number(mRec.amount_paid) || 0) : 0;
+                                                                    const curBal = pBal + curDue - curPaid;
+                                                                    
                                                                     return (
-                                                                        <td key={mIdx} className="px-1 py-1.5 border-r border-slate-100 last:border-r-0 text-center">
-                                                                            {rec && (
-                                                                                <div className={`w-2 h-2 rounded-full mx-auto ${rec.amount_paid >= (rec.monthly_fee + rec.payroll_fee + (rec.extras || 0)) ? 'bg-green-400' : 'bg-red-400'}`} />
-                                                                            )}
-                                                                            {!rec && <div className="w-2 h-2 rounded-full mx-auto bg-slate-100" />}
-                                                                        </td>
+                                                                        <>
+                                                                            <td className="px-2 py-2 border-r border-slate-100/50 text-right">
+                                                                                <span className={`text-[9px] font-mono font-bold ${pBal < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                                                                    {fmt(pBal)}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="px-2 py-2 border-r border-slate-100/50 text-right">
+                                                                                <span className="text-[9px] font-mono font-bold text-slate-400">{fmt(curDue)}</span>
+                                                                            </td>
+                                                                            <td className="px-2 py-2 border-r border-slate-100/50 text-right">
+                                                                                <span className="text-[9px] font-mono font-bold text-slate-400">{fmt(curPaid)}</span>
+                                                                            </td>
+                                                                            <td className="px-2 py-2 border-r border-slate-100/50 text-right">
+                                                                                <span className={`text-[9px] font-mono font-bold ${curBal < 0 ? 'text-red-500' : 'text-slate-700'}`}>
+                                                                                    {fmt(curBal)}
+                                                                                </span>
+                                                                            </td>
+                                                                        </>
                                                                     );
-                                                                })}
+                                                                })()}
                                                                 <td className="px-2 py-1.5 text-center">
                                                                     <button 
                                                                         onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth), selectedMonth); }}
@@ -1265,24 +1280,41 @@ Atenciosamente,
                                             <td className="px-2 py-1.5 border-r border-slate-100"></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">{company.code || '---'}</span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-bold text-slate-800 truncate block max-w-[220px]">{company.name}</span></td>
-                                            <td className="px-2 py-1.5 border-r border-slate-100 text-right">
-                                                <span className="text-[10px] font-mono font-bold text-green-600">{company.monthly_fee ? fmt(company.monthly_fee) : '-'}</span>
-                                            </td>
                                             <td className="px-2 py-1.5 border-r border-slate-100 text-center">
-                                                <span className="text-[10px] font-mono font-bold text-slate-500">{company.due_day || '-'}</span>
+                                                <span className="text-[10px] font-mono font-bold text-slate-400">
+                                                    {company.client_date ? new Date(company.client_date).toLocaleDateString('pt-BR') : '-'}
+                                                </span>
                                             </td>
-                                            {MONTHS.map((_, mIdx) => {
-                                                const companyYearRecords = companyRecords.filter(r => r.year === selectedYear);
-                                                const rec = companyYearRecords.find(r => r.month === mIdx + 1);
+                                            {(() => {
+                                                const cRecs = records.filter(r => r.company_id === company.id && r.year === selectedYear);
+                                                const mRec = cRecs.find(r => r.month === selectedMonth);
+                                                const pRecs = cRecs.filter(r => r.month < selectedMonth);
+                                                const pBal = pRecs.reduce((sum, r) => sum + ((Number(r.monthly_fee) || 0) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0)) - (Number(r.amount_paid) || 0), 0);
+                                                const curDue = mRec ? (Number(mRec.monthly_fee) || 0) + (Number(mRec.payroll_fee) || 0) + (Number(mRec.extras) || 0) : (company.monthly_fee || 0);
+                                                const curPaid = mRec ? (Number(mRec.amount_paid) || 0) : 0;
+                                                const curBal = pBal + curDue - curPaid;
+                                                
                                                 return (
-                                                    <td key={mIdx} className="px-1 py-1.5 border-r border-slate-100 last:border-r-0 text-center">
-                                                        {rec && (
-                                                            <div className={`w-3 h-3 rounded-full mx-auto ${rec.amount_paid >= (rec.monthly_fee + rec.payroll_fee + (rec.extras || 0)) ? 'bg-green-500' : 'bg-red-500'}`} />
-                                                        )}
-                                                        {!rec && <div className="w-3 h-3 rounded-full mx-auto bg-slate-200" />}
-                                                    </td>
+                                                    <>
+                                                        <td className="px-2 py-1.5 border-r border-slate-100 text-right">
+                                                            <span className={`text-[10px] font-mono font-bold ${pBal < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                                                                {fmt(pBal)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 border-r border-slate-100 text-right">
+                                                            <span className="text-[10px] font-mono font-bold text-slate-400">{fmt(curDue)}</span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 border-r border-slate-100 text-right">
+                                                            <span className="text-[10px] font-mono font-bold text-slate-400">{fmt(curPaid)}</span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 border-r border-slate-100 text-right">
+                                                            <span className={`text-[10px] font-mono font-bold ${curBal < 0 ? 'text-red-500' : 'text-slate-800'}`}>
+                                                                {fmt(curBal)}
+                                                            </span>
+                                                        </td>
+                                                    </>
                                                 );
-                                            })}
+                                            })()}
                                             <td className="px-2 py-1.5 text-center">
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth && r.year === selectedYear), selectedMonth); }}
