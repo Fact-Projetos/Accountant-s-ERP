@@ -117,15 +117,15 @@ const AccountantFinancial: React.FC = () => {
         try {
             const text = await file.text();
             const txs = parseOfx(text);
-            
+
             // Only keep positive transactions (inflows/deposits)
             const inflows = txs.filter(t => t.amount > 0);
-            
+
             if (inflows.length === 0) {
                 setOfxUploadError("Nenhum lançamento de entrada (venda/pagamento) encontrado no arquivo.");
             } else {
                 setOfxTransactions(inflows);
-                
+
                 // Auto-match logic
                 const newMatches: Record<string, string> = {};
                 inflows.forEach(tx => {
@@ -144,14 +144,14 @@ const AccountantFinancial: React.FC = () => {
 
     const findCompanyMatch = (tx: OfxTransaction) => {
         const description = (tx.name + " " + tx.memo).toLowerCase();
-        
+
         // Exact match or includes (case insensitive)
         return companies.find(c => {
             const name = c.name.toLowerCase();
             const tradeName = (c.tradeName || '').toLowerCase();
             const responsible = (c.responsibleName || '').toLowerCase();
             const code = (c.code || '').toLowerCase();
-            
+
             return (
                 (name && description.includes(name)) ||
                 (tradeName && description.includes(tradeName)) ||
@@ -229,7 +229,7 @@ const AccountantFinancial: React.FC = () => {
     const [standaloneServices, setStandaloneServices] = useState<any[]>([]);
     const [standaloneForm, setStandaloneForm] = useState<any | null>(null);
     const [isLoadingStandalone, setIsLoadingStandalone] = useState(false);
-    
+
     // Financial Groups State
     const [groups, setGroups] = useState<FinancialGroup[]>([]);
     const [isManagingGroups, setIsManagingGroups] = useState(false);
@@ -258,14 +258,14 @@ const AccountantFinancial: React.FC = () => {
                 .select('*')
                 .order('name');
 
-            if (error) { 
+            if (error) {
                 console.error('[DEBUG] fetchCompanies error:', error);
                 alert('Erro ao carregar empresas: ' + error.message);
                 return;
             }
 
             console.log('[DEBUG] fetchCompanies data:', data?.length || 0, 'rows retrieved');
-            
+
             // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
             const sorted = (data || []).sort((a: any, b: any) => {
                 const codeA = String(a.code || '').replace(/-/g, '').trim();
@@ -298,7 +298,7 @@ const AccountantFinancial: React.FC = () => {
                 responsibleName: c.responsible_name || '',
                 temp_seq_id: idx + 1
             }));
-            
+
             setCompanies(mapped);
         } catch (err: any) {
             console.error('[DEBUG] fetchCompanies crash:', err);
@@ -323,9 +323,9 @@ const AccountantFinancial: React.FC = () => {
         if (!groupForm?.name) return;
         setIsSavingGroup(true);
         try {
-            const payload = { 
-                name: groupForm.name, 
-                phone: groupForm.phone || '' 
+            const payload = {
+                name: groupForm.name,
+                phone: groupForm.phone || ''
             } as any;
             if (groupForm.id) {
                 const { error } = await supabase.from('financial_groups').update(payload).eq('id', groupForm.id);
@@ -361,7 +361,7 @@ const AccountantFinancial: React.FC = () => {
     const handleWhatsAppGroupBilling = (group: FinancialGroup) => {
         const groupMembers = companies.filter(c => c.financial_group_id === group.id);
         if (groupMembers.length === 0) { alert('Este grupo não possui empresas.'); return; }
-        
+
         const rawPhone = group.phone?.replace(/\D/g, '') || groupMembers[0].phone?.replace(/\D/g, '') || '';
         if (!rawPhone) { alert('Configure um telefone para o grupo ou para a empresa principal.'); return; }
         const phoneNumber = rawPhone.length <= 11 ? `55${rawPhone}` : rawPhone;
@@ -523,16 +523,16 @@ const AccountantFinancial: React.FC = () => {
         const monthlyData = MONTHS.map((label, idx) => {
             const m = idx + 1;
             const rec = clientRecords.find(r => r.month === m);
-            
+
             // For January, we start with the carry-over from the database
             if (m === 1) cumulativeBalance = rec?.previous_balance || 0;
-            
+
             const svcs = clientServices.filter(s => s.month === m);
             const extrasTotal = svcs.reduce((s, sv) => s + sv.value, 0);
             const monthlyFee = rec?.monthly_fee || 0;
             const payrollFee = rec?.payroll_fee || 0;
             const amountPaid = rec?.amount_paid || 0;
-            
+
             const total = monthlyFee + payrollFee + extrasTotal;
             const prevBalanceForThisMonth = cumulativeBalance;
             cumulativeBalance += (total - amountPaid);
@@ -796,18 +796,18 @@ const AccountantFinancial: React.FC = () => {
             alert('Cliente sem telefone cadastrado.');
             return;
         }
-        
+
         const phoneNumber = rawPhone.length <= 11 ? `55${rawPhone}` : rawPhone;
 
         const companyRecords = records.filter(r => r.company_id === company.id && r.year === selectedYear);
-        
+
         // Use provided record/month or find the first unpaid/current
         const record = specificRecord || (specificMonth ? companyRecords.find(r => r.month === specificMonth) : (companyRecords.find(r => r.status === 'Em Aberto') || companyRecords.find(r => r.month === currentDate.getMonth() + 1)));
-        
+
         const mIdx = record ? record.month - 1 : (specificMonth ? specificMonth - 1 : currentDate.getMonth());
         const monthName = MONTHS_FULL[mIdx];
         const monthNum = String(mIdx + 1).padStart(2, '0');
-        
+
         // Values for breakdown - use provided breakdown or fallback to record/company
         const mensalidade = breakdown ? breakdown.mensalidade : (record?.monthly_fee || company.monthly_fee || 0);
         const folha = breakdown ? breakdown.folha : (record?.payroll_fee || 0);
@@ -818,7 +818,7 @@ const AccountantFinancial: React.FC = () => {
 
         const message = `Olá *${company.name}*! 👋
 
-Passando para informar que a mensalidade de **${monthName} de ${selectedYear}** já está disponível.
+Este é o resumo da mensalidade de **${monthName} de ${selectedYear}** já está disponível.
 
 *Resumo dos Serviços:*
 📊 Mensalidade: ${fmt(mensalidade)}
@@ -830,6 +830,12 @@ Passando para informar que a mensalidade de **${monthName} de ${selectedYear}** 
 
 Caso já tenha efetuado o pagamento, por favor desconsidere esta mensagem.
 
+Dados para pagamento:
+
+Fact Assessoria e Consultoria Empresarial Ltda
+Banco Inter 
+Chave Pix [CNPJ]: 30.321.587/0001-00
+
 Atenciosamente,
 **Fact Assessoria**`;
 
@@ -839,7 +845,7 @@ Atenciosamente,
 
     const filteredCompanies = companies.filter(c => {
         if (!c.monthly_fee || c.monthly_fee <= 0) return false;
-        
+
         const s = searchTerm.toLowerCase();
         const seqIdStr = c.client_seq_id ? String(c.client_seq_id) : '';
         return c.name?.toLowerCase().includes(s) || seqIdStr.includes(s) || c.code?.toLowerCase().includes(s);
@@ -853,8 +859,8 @@ Atenciosamente,
                     <p className="text-slate-500 text-sm">Gestão mensal de mensalidades e serviços avulsos.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <select 
-                        value={selectedMonth} 
+                    <select
+                        value={selectedMonth}
                         onChange={e => setSelectedMonth(parseInt(e.target.value))}
                         className="text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-blue-400"
                     >
@@ -909,20 +915,20 @@ Atenciosamente,
                                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Novo / Editar Responsável</h4>
                                     <div className="flex flex-col gap-3">
-                                        <input 
+                                        <input
                                             placeholder="Nome do Responsável"
                                             value={groupForm?.name || ''}
                                             onChange={e => setGroupForm(p => ({ ...p, name: e.target.value }))}
                                             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-blue-400"
                                         />
-                                        <input 
+                                        <input
                                             placeholder="WhatsApp (ex: 21999999999)"
                                             value={groupForm?.phone || ''}
                                             onChange={e => setGroupForm(p => ({ ...p, phone: e.target.value }))}
                                             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl outline-none focus:border-blue-400"
                                         />
                                         <div className="flex gap-2">
-                                            <button 
+                                            <button
                                                 onClick={saveGroup} disabled={isSavingGroup}
                                                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-xl text-xs transition-all disabled:opacity-50"
                                             >
@@ -963,8 +969,8 @@ Atenciosamente,
                                                 <p className="text-xs font-bold text-slate-800">{c.name}</p>
                                                 <p className="text-[9px] text-slate-400">{c.code || 'S/C'}</p>
                                             </div>
-                                            <select 
-                                                value={c.financial_group_id || ''} 
+                                            <select
+                                                value={c.financial_group_id || ''}
                                                 onChange={e => toggleCompanyGroup(c.id, e.target.value || null)}
                                                 className="text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none"
                                             >
@@ -1007,6 +1013,7 @@ Atenciosamente,
                                 <tr className="bg-slate-50 border-b-2 border-slate-200">
                                     <th className="w-8 px-2 py-2.5 border-r border-slate-200"></th>
                                     <th className="w-14 px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">ID</span></th>
+                                    <th className="w-20 px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Sistema</span></th>
                                     <th className="min-w-[180px] px-2 py-2.5 border-r border-slate-200 text-left"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Cliente / Responsável</span></th>
                                     <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-center"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Data Cliente</span></th>
                                     <th className="w-24 px-2 py-2.5 border-r border-slate-200 text-right"><span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">Saldo Anterior</span></th>
@@ -1017,13 +1024,13 @@ Atenciosamente,
                                 </tr>
                             </thead>
                             <tbody>
-                                {isLoading && <tr><td colSpan={9} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" /></td></tr>}
-                                
+                                {isLoading && <tr><td colSpan={10} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-300" /></td></tr>}
+
                                 {!isLoading && groups.map(group => {
                                     const groupMembers = filteredCompanies.filter(c => c.financial_group_id === group.id);
                                     if (groupMembers.length === 0) return null;
                                     const isExpanded = !!expandedGroups[group.id];
-                                    
+
                                     const groupRecs = records.filter(r => groupMembers.some(m => m.id === r.company_id) && r.year === selectedYear);
                                     const monthRecs = groupRecs.filter(r => r.month === selectedMonth);
                                     const prevRecs = groupRecs.filter(r => r.month < selectedMonth);
@@ -1048,10 +1055,11 @@ Atenciosamente,
                                                 <td className="px-2 py-3 text-center border-r border-slate-100">
                                                     <Users className="w-3.5 h-3.5 text-blue-400 mx-auto" />
                                                 </td>
+                                                <td className="px-2 py-3 border-r border-slate-100"></td>
                                                 <td className="px-2 py-3 border-r border-slate-100">
                                                     <div className="flex flex-col">
                                                         <span className="text-[12px] font-black text-slate-800 uppercase flex items-center gap-1.5 tracking-tight">
-                                                            {group.name} 
+                                                            {group.name}
                                                             <span className="bg-blue-100 text-blue-600 text-[8px] px-1.5 py-0.5 rounded-full font-black">GRUPO</span>
                                                         </span>
                                                         <span className="text-[10px] text-blue-500 font-medium">{group.phone || 'Sem telefone principal'}</span>
@@ -1084,7 +1092,7 @@ Atenciosamente,
                                                 </td>
                                                 <td className="px-2 py-1.5 text-center">
                                                     <div className="flex items-center justify-center gap-0.5">
-                                                        <button 
+                                                        <button
                                                             onClick={(e) => { e.stopPropagation(); handleWhatsAppGroupBilling(group); }}
                                                             className="p-1 text-slate-300 hover:text-green-500 hover:bg-green-50 rounded-lg transition-all"
                                                             title="Cobrança Consolidada"
@@ -1099,10 +1107,10 @@ Atenciosamente,
                                                 <>
                                                     {/* Group Summary Card for Screenshot/Reporting */}
                                                     <tr key={`summary-${group.id}`} className="bg-slate-50/80 border-b border-blue-100">
-                                                <td colSpan={9} className="px-6 py-4">
+                                                        <td colSpan={10} className="px-6 py-4">
                                                             <div className="bg-white rounded-2xl border-2 border-blue-200 shadow-xl p-6 max-w-4xl mx-auto flex flex-col gap-6 relative overflow-hidden">
                                                                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -mr-16 -mt-16 opacity-50 pointer-events-none" />
-                                                                
+
                                                                 <div className="flex items-center justify-between border-b border-slate-100 pb-4 relative">
                                                                     <div className="flex items-center gap-3">
                                                                         <div className="bg-blue-600 text-white p-2 rounded-lg shadow-lg">
@@ -1116,7 +1124,7 @@ Atenciosamente,
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <button 
+                                                                        <button
                                                                             onClick={() => window.print()}
                                                                             className="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl transition-all print:hidden"
                                                                             title="Imprimir Resumo"
@@ -1167,7 +1175,7 @@ Atenciosamente,
                                                                             const pBal = Number(r.payroll_fee) || 0;
                                                                             const extraTotal = (r.extras || 0);
                                                                             const totalDue = mBal + pBal + extraTotal;
-                                                                            
+
                                                                             return (
                                                                                 <div key={member.id} className="flex items-center justify-between py-2 px-4 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100 group/item">
                                                                                     <div className="flex items-center gap-3">
@@ -1216,6 +1224,9 @@ Atenciosamente,
                                                                 <td className="px-2 py-2 text-center border-r border-slate-100/50">
                                                                     <span className="text-[10px] font-mono font-bold text-slate-400">#{String(cIdx + 1).padStart(2, '0')}</span>
                                                                 </td>
+                                                                <td className="px-2 py-2 border-r border-slate-100/50">
+                                                                    <span className="text-[10px] font-mono font-bold text-slate-400">{company.code || '---'}</span>
+                                                                </td>
                                                                 <td className="px-2 py-2 border-r border-slate-100/50 pl-6 relative">
                                                                     <div className="absolute left-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-200" />
                                                                     <div className="flex flex-col">
@@ -1236,7 +1247,7 @@ Atenciosamente,
                                                                     const curDue = mRec ? (Number(mRec.monthly_fee) || 0) + (Number(mRec.payroll_fee) || 0) + (Number(mRec.extras) || 0) : (company.monthly_fee || 0);
                                                                     const curPaid = mRec ? (Number(mRec.amount_paid) || 0) : 0;
                                                                     const curBal = pBal + curDue - curPaid;
-                                                                    
+
                                                                     return (
                                                                         <>
                                                                             <td className="px-2 py-2 border-r border-slate-100/50 text-right">
@@ -1260,14 +1271,14 @@ Atenciosamente,
                                                                 })()}
                                                                 <td className="px-2 py-1.5 text-center">
                                                                     <div className="flex items-center justify-center gap-0.5">
-                                                                        <button 
+                                                                        <button
                                                                             onClick={(e) => { e.stopPropagation(); fetchClientDetail(company); }}
                                                                             className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-all"
                                                                             title="Editar Lançamentos"
                                                                         >
                                                                             <Edit className="w-3.5 h-3.5" />
                                                                         </button>
-                                                                        <button 
+                                                                        <button
                                                                             onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth), selectedMonth); }}
                                                                             className="p-1 text-slate-300 hover:text-green-500 hover:bg-green-50 rounded transition-all"
                                                                             title="WhatsApp"
@@ -1290,7 +1301,8 @@ Atenciosamente,
                                     return (
                                         <tr key={company.id} className={`border-b border-slate-100 transition-colors cursor-pointer ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'} hover:bg-blue-50/50`} onClick={() => fetchClientDetail(company)}>
                                             <td className="px-2 py-1.5 border-r border-slate-100"></td>
-                                            <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-mono font-bold text-slate-600">{company.code || '---'}</span></td>
+                                            <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-bold font-mono text-slate-500">{String(idx + 1).padStart(3, '0')}</span></td>
+                                            <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-bold font-mono text-slate-600">{company.code || '---'}</span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100"><span className="text-[11px] font-bold text-slate-800 truncate block max-w-[220px]">{company.name}</span></td>
                                             <td className="px-2 py-1.5 border-r border-slate-100 text-center">
                                                 <span className="text-[10px] font-mono font-bold text-slate-400">
@@ -1305,7 +1317,7 @@ Atenciosamente,
                                                 const curDue = mRec ? (Number(mRec.monthly_fee) || 0) + (Number(mRec.payroll_fee) || 0) + (Number(mRec.extras) || 0) : (company.monthly_fee || 0);
                                                 const curPaid = mRec ? (Number(mRec.amount_paid) || 0) : 0;
                                                 const curBal = pBal + curDue - curPaid;
-                                                
+
                                                 return (
                                                     <>
                                                         <td className="px-2 py-1.5 border-r border-slate-100 text-right">
@@ -1329,14 +1341,14 @@ Atenciosamente,
                                             })()}
                                             <td className="px-2 py-1.5 text-center">
                                                 <div className="flex items-center justify-center gap-0.5">
-                                                    <button 
+                                                    <button
                                                         onClick={(e) => { e.stopPropagation(); fetchClientDetail(company); }}
                                                         className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-all"
                                                         title="Editar Lançamentos"
                                                     >
                                                         <Edit className="w-3.5 h-3.5" />
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={(e) => { e.stopPropagation(); handleWhatsAppBilling(company, companyRecords.find(r => r.month === selectedMonth && r.year === selectedYear), selectedMonth); }}
                                                         className="p-1 text-slate-300 hover:text-green-500 hover:bg-green-50 rounded transition-all"
                                                         title="WhatsApp"
@@ -1498,11 +1510,11 @@ Atenciosamente,
                             </div>
                             <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Conciliador Bancário OFX</h2>
                             <p className="text-xs text-slate-500 font-medium">Arraste seu arquivo .ofx ou clique no botão abaixo para identificar pagamentos automaticamente.</p>
-                            
+
                             <div className="relative group">
-                                <input 
-                                    type="file" 
-                                    accept=".ofx" 
+                                <input
+                                    type="file"
+                                    accept=".ofx"
                                     onChange={handleOfxUpload}
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                     disabled={isReconciling}
@@ -1512,7 +1524,7 @@ Atenciosamente,
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest group-hover:text-orange-500">Selecionar arquivo OFX</span>
                                 </div>
                             </div>
-                            
+
                             {ofxUploadError && (
                                 <p className="text-[10px] font-bold text-red-500 bg-red-50 py-2 px-4 rounded-lg">{ofxUploadError}</p>
                             )}
@@ -1535,7 +1547,7 @@ Atenciosamente,
                                     {ofxTransactions.map((tx) => {
                                         const companyId = reconcileMatches[tx.id];
                                         const isMatched = !!companyId;
-                                        
+
                                         return (
                                             <tr key={tx.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                                                 <td className="px-4 py-3 text-[11px] font-mono text-slate-500 border-r border-slate-100">
@@ -1551,8 +1563,8 @@ Atenciosamente,
                                                     {fmt(tx.amount)}
                                                 </td>
                                                 <td className="px-4 py-3 border-r border-slate-100">
-                                                    <select 
-                                                        value={companyId || ''} 
+                                                    <select
+                                                        value={companyId || ''}
                                                         onChange={(e) => setReconcileMatches(prev => ({ ...prev, [tx.id]: e.target.value }))}
                                                         className={`w-full bg-transparent text-[11px] font-bold outline-none cursor-pointer p-1 rounded border-b-2 ${isMatched ? 'border-green-400 text-slate-800' : 'border-slate-200 text-slate-400'}`}
                                                     >
@@ -1563,7 +1575,7 @@ Atenciosamente,
                                                     </select>
                                                 </td>
                                                 <td className="px-4 py-3 text-center">
-                                                    <button 
+                                                    <button
                                                         onClick={() => confirmReconciliation(tx)}
                                                         disabled={!isMatched || isSaving}
                                                         className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isMatched ? 'bg-green-600 text-white hover:bg-green-700 shadow-sm' : 'bg-slate-100 text-slate-300'}`}
