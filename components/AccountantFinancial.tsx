@@ -492,26 +492,79 @@ const AccountantFinancial: React.FC = () => {
     };
 
     const handleProvision = async () => {
-        if (!window.confirm(`Provisionar lançamentos para ${selectedYear}?\nIsso criará registros em aberto para clientes ativos nos meses sem lançamento.`)) return;
+        if (!window.confirm(`Provisionar lançamentos para ${selectedYear}?\nIsso criará registros em aberto para clientes ativos nos meses sem lançamento e atualizará mensalidades zeradas.`)) return;
         setIsLoading(true);
         try {
-            const existingKeys = new Set(records.map(r => `${r.company_id}-${r.month}`));
+            // Build map of existing records keyed by company_id-month
+            const existingMap = new Map<string, FinancialRecord>();
+            records.forEach(r => existingMap.set(`${r.company_id}-${r.month}`, r));
+
             const toInsert: any[] = [];
+            const toUpdate: { id: string; monthly_fee: number }[] = [];
+
             companies.filter(c => c.status === 'Ativo').forEach(c => {
+                const companyFee = c.monthly_fee || 0;
                 for (let m = 1; m <= 12; m++) {
-                    if (!existingKeys.has(`${c.id}-${m}`)) {
+                    const key = `${c.id}-${m}`;
+                    const existing = existingMap.get(key);
+                    if (!existing) {
+                        // Phase 1: Create new records for months without entries
                         toInsert.push({
                             company_id: c.id, year: selectedYear, month: m,
-                            monthly_fee: c.monthly_fee || 0, payroll_fee: 0, extras: 0, amount_paid: 0,
+                            monthly_fee: companyFee, payroll_fee: 0, extras: 0, amount_paid: 0,
                             previous_balance: 0, status: 'Em Aberto', notes: '',
                         });
+                    } else if (
+                        existing.id &&
+                        (Number(existing.monthly_fee) || 0) === 0 &&
+                        companyFee > 0 &&
+                        existing.status === 'Em Aberto'
+                    ) {
+                        // Phase 2: Update existing records that have monthly_fee = 0
+                        // but the company now has a fee configured (only if still unpaid)
+                        toUpdate.push({ id: existing.id, monthly_fee: companyFee });
                     }
                 }
             });
-            if (toInsert.length === 0) { alert('Todos os meses já estão provisionados.'); setIsLoading(false); return; }
-            const { error } = await supabase.from('accountant_financial').insert(toInsert);
-            if (error) throw error;
-            alert(`${toInsert.length} lançamento(s) criado(s)!`);
+
+            let msgParts: string[] = [];
+
+            // Insert new records
+            if (toInsert.length > 0) {
+                const { error } = await supabase.from('accountant_financial').insert(toInsert);
+                if (error) throw error;
+                msgParts.push(`${toInsert.length} lançamento(s) criado(s)`);
+            }
+
+            // Update existing records with zero monthly_fee
+            if (toUpdate.length > 0) {
+                // Batch update in groups of 50
+                for (let i = 0; i < toUpdate.length; i += 50) {
+                    const batch = toUpdate.slice(i, i + 50);
+                    const ids = batch.map(b => b.id);
+                    // Group by fee value for efficient updates
+                    const feeGroups = new Map<number, string[]>();
+                    batch.forEach(b => {
+                        const arr = feeGroups.get(b.monthly_fee) || [];
+                        arr.push(b.id);
+                        feeGroups.set(b.monthly_fee, arr);
+                    });
+                    for (const [fee, feeIds] of feeGroups) {
+                        const { error } = await supabase
+                            .from('accountant_financial')
+                            .update({ monthly_fee: fee })
+                            .in('id', feeIds);
+                        if (error) throw error;
+                    }
+                }
+                msgParts.push(`${toUpdate.length} mensalidade(s) atualizada(s) de R$ 0,00 para o valor do cadastro`);
+            }
+
+            if (msgParts.length === 0) {
+                alert('Todos os meses já estão provisionados e com valores corretos.');
+            } else {
+                alert(msgParts.join('\n'));
+            }
             fetchAllRecords();
         } catch (err: any) { alert('Erro: ' + err.message); }
         finally { setIsLoading(false); }
@@ -1034,10 +1087,19 @@ Atenciosamente,
                                     const groupRecs = records.filter(r => groupMembers.some(m => m.id === r.company_id) && r.year === selectedYear);
                                     const monthRecs = groupRecs.filter(r => r.month === selectedMonth);
                                     const prevRecs = groupRecs.filter(r => r.month < selectedMonth);
+
+                                    // Helper to get fee with company fallback
+                                    const getFee = (r: FinancialRecord) => {
+                                        const recFee = Number(r.monthly_fee) || 0;
+                                        if (recFee > 0) return recFee;
+                                        const member = groupMembers.find(m => m.id === r.company_id);
+                                        return member?.monthly_fee || 0;
+                                    };
+
                                     const stats = {
-                                        monthlyTotal: monthRecs.reduce((sum, r) => sum + (Number(r.monthly_fee) || 0) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0), 0),
+                                        monthlyTotal: monthRecs.reduce((sum, r) => sum + getFee(r) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0), 0),
                                         paymentTotal: monthRecs.reduce((sum, r) => sum + (Number(r.amount_paid) || 0), 0),
-                                        prevBalance: prevRecs.reduce((sum, r) => sum + ((Number(r.monthly_fee) || 0) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0)) - (Number(r.amount_paid) || 0), 0),
+                                        prevBalance: prevRecs.reduce((sum, r) => sum + (getFee(r) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0)) - (Number(r.amount_paid) || 0), 0),
                                         currentBalance: 0
                                     };
                                     stats.currentBalance = stats.prevBalance + stats.monthlyTotal - stats.paymentTotal;
@@ -1170,8 +1232,8 @@ Atenciosamente,
                                                                     </div>
                                                                     <div className="grid grid-cols-1 gap-1">
                                                                         {groupMembers.map(member => {
-                                                                            const r = records.find(rec => rec.company_id === member.id && rec.month === selectedMonth && rec.year === selectedYear) || {};
-                                                                            const mBal = Number(r.monthly_fee) || 0;
+                                                                            const r = records.find(rec => rec.company_id === member.id && rec.month === selectedMonth && rec.year === selectedYear) || {} as any;
+                                                                            const mBal = Number(r.monthly_fee) || member.monthly_fee || 0;
                                                                             const pBal = Number(r.payroll_fee) || 0;
                                                                             const extraTotal = (r.extras || 0);
                                                                             const totalDue = mBal + pBal + extraTotal;
@@ -1243,8 +1305,9 @@ Atenciosamente,
                                                                     const cRecs = records.filter(r => r.company_id === company.id && r.year === selectedYear);
                                                                     const mRec = cRecs.find(r => r.month === selectedMonth);
                                                                     const pRecs = cRecs.filter(r => r.month < selectedMonth);
-                                                                    const pBal = pRecs.reduce((sum, r) => sum + ((Number(r.monthly_fee) || 0) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0)) - (Number(r.amount_paid) || 0), 0);
-                                                                    const curDue = mRec ? (Number(mRec.monthly_fee) || 0) + (Number(mRec.payroll_fee) || 0) + (Number(mRec.extras) || 0) : (company.monthly_fee || 0);
+                                                                    const pBal = pRecs.reduce((sum, r) => sum + ((Number(r.monthly_fee) || company.monthly_fee || 0) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0)) - (Number(r.amount_paid) || 0), 0);
+                                                                    const recFee = mRec ? (Number(mRec.monthly_fee) || company.monthly_fee || 0) : (company.monthly_fee || 0);
+                                                                    const curDue = recFee + (mRec ? (Number(mRec.payroll_fee) || 0) + (Number(mRec.extras) || 0) : 0);
                                                                     const curPaid = mRec ? (Number(mRec.amount_paid) || 0) : 0;
                                                                     const curBal = pBal + curDue - curPaid;
 
@@ -1313,8 +1376,9 @@ Atenciosamente,
                                                 const cRecs = records.filter(r => r.company_id === company.id && r.year === selectedYear);
                                                 const mRec = cRecs.find(r => r.month === selectedMonth);
                                                 const pRecs = cRecs.filter(r => r.month < selectedMonth);
-                                                const pBal = pRecs.reduce((sum, r) => sum + ((Number(r.monthly_fee) || 0) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0)) - (Number(r.amount_paid) || 0), 0);
-                                                const curDue = mRec ? (Number(mRec.monthly_fee) || 0) + (Number(mRec.payroll_fee) || 0) + (Number(mRec.extras) || 0) : (company.monthly_fee || 0);
+                                                const pBal = pRecs.reduce((sum, r) => sum + ((Number(r.monthly_fee) || company.monthly_fee || 0) + (Number(r.payroll_fee) || 0) + (Number(r.extras) || 0)) - (Number(r.amount_paid) || 0), 0);
+                                                const recFee = mRec ? (Number(mRec.monthly_fee) || company.monthly_fee || 0) : (company.monthly_fee || 0);
+                                                const curDue = recFee + (mRec ? (Number(mRec.payroll_fee) || 0) + (Number(mRec.extras) || 0) : 0);
                                                 const curPaid = mRec ? (Number(mRec.amount_paid) || 0) : 0;
                                                 const curBal = pBal + curDue - curPaid;
 

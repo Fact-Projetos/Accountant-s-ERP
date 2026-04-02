@@ -46,7 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ currentView, onNavigate, onLogout, user
   ];
 
   const menuItems = userRole === 'Contador'
-    ? accountantMenu
+    ? accountantMenu.filter(item => !visibleViews || visibleViews.includes(item.id as ViewState))
     : clientMenu.filter(item => !visibleViews || visibleViews.includes(item.id as ViewState));
 
   return (

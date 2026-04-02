@@ -62,9 +62,10 @@ interface ClientsProps {
   onImpersonate?: (companyId: string) => void;
   initialData?: Client[];
   onDataUpdate?: (data: Client[]) => void;
+  hideFinancialFields?: boolean;
 }
 
-const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpdate }) => {
+const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpdate, hideFinancialFields }) => {
   const [viewMode, setViewMode] = useState<'LIST' | 'FORM'>('LIST');
   const [clients, setClients] = useState<Client[]>(initialData || []);
   const [searchTerm, setSearchTerm] = useState('');
@@ -623,6 +624,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                 className="col-span-3 border-r-0"
               />
             </div>
+            {!hideFinancialFields && (
             <div className="grid grid-cols-12 border-t border-slate-200">
               <InputField
                 label="R$ Mensalidade"
@@ -643,6 +645,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                 placeholder="10"
               />
             </div>
+            )}
           </div>
 
           {/* Endereço */}

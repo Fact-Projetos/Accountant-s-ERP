@@ -52,15 +52,32 @@ const App: React.FC = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsLoggedIn(true);
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role, company_id')
-          .eq('id', session.user.id)
-          .single();
+        let profile: any = null;
+        try {
+          const { data } = await supabase
+            .from('profiles')
+            .select('role, company_id, visible_views')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          profile = data;
+        } catch (err) {
+          // If visible_views column doesn't exist, try without it
+          try {
+            const { data } = await supabase
+              .from('profiles')
+              .select('role, company_id')
+              .eq('id', session.user.id)
+              .maybeSingle();
+            profile = data;
+          } catch (e) { /* profiles table may not exist */ }
+        }
 
         const role = profile?.role as 'Contador' | 'Cliente' || session.user.user_metadata?.role || 'Contador';
         setUserRole(role);
         setProfileCompanyId(profile?.company_id || null);
+        if (profile?.visible_views) {
+          setVisibleViews(profile.visible_views as ViewState[]);
+        }
         setCurrentView(role === 'Contador' ? ViewState.HOME : ViewState.MY_COMPANY);
       }
     };
@@ -71,17 +88,34 @@ const App: React.FC = () => {
       if (session) {
         setIsLoggedIn(true);
 
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role, company_id')
-          .eq('id', session.user.id)
-          .single();
+        let profile: any = null;
+        try {
+          const { data } = await supabase
+            .from('profiles')
+            .select('role, company_id, visible_views')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          profile = data;
+        } catch (err) {
+          try {
+            const { data } = await supabase
+              .from('profiles')
+              .select('role, company_id')
+              .eq('id', session.user.id)
+              .maybeSingle();
+            profile = data;
+          } catch (e) { /* ignore */ }
+        }
 
         const role = (profile?.role as 'Contador' | 'Cliente') || (session.user.user_metadata?.role as 'Contador' | 'Cliente') || 'Contador';
         setUserRole(role);
         setProfileCompanyId(profile?.company_id || null);
-        setVisibleViews(null);
-        console.log(`Auth Change: ${session.user.email} | Role: ${role} | Company: ${profile?.company_id}`);
+        if (profile?.visible_views) {
+          setVisibleViews(profile.visible_views as ViewState[]);
+        } else {
+          setVisibleViews(null);
+        }
+        console.log(`Auth Change: ${session.user.email} | Role: ${role} | Company: ${profile?.company_id} | Views: ${profile?.visible_views || 'all'}`);
       } else {
         setIsLoggedIn(false);
         setUserRole('Contador');
@@ -105,15 +139,15 @@ const App: React.FC = () => {
             .single() as any;
 
           if (data && !error) {
-            console.log('Applying view permissions:', data.visible_views);
+            console.log('Applying client view permissions:', data.visible_views);
             setVisibleViews(data.visible_views as ViewState[]);
           }
         } catch (err) {
           console.error('Error fetching permissions:', err);
         }
-      } else {
-        setVisibleViews(null);
       }
+      // For Contador: visibleViews is already loaded from profile in checkSession/onAuthStateChange
+      // Don't reset to null here for Contador users
     };
     fetchPermissions();
   }, [userRole, activeCompanyId]);
@@ -177,6 +211,7 @@ const App: React.FC = () => {
           onImpersonate={handleImpersonate}
           initialData={globalClients}
           onDataUpdate={setGlobalClients}
+          hideFinancialFields={visibleViews !== null && !visibleViews.includes(ViewState.ACC_FINANCIAL)}
         />;
       case ViewState.MOVEMENTS:
         return <Movements
