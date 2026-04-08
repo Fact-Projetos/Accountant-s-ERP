@@ -33,6 +33,12 @@ const App: React.FC = () => {
   // Global Cache to prevent "flickering" between tabs
   const [globalClients, setGlobalClients] = useState<any[]>([]);
   const [globalCityLinks, setGlobalCityLinks] = useState<any[]>([]);
+  const [globalMovementsFilters, setGlobalMovementsFilters] = useState({
+    client: '',
+    month: '',
+    year: String(new Date().getFullYear()),
+    city: ''
+  });
 
   useEffect(() => {
     // Check active sessions and sets the user
@@ -219,6 +225,8 @@ const App: React.FC = () => {
           onClientsUpdate={setGlobalClients}
           initialCityLinks={globalCityLinks}
           onCityLinksUpdate={setGlobalCityLinks}
+          filters={globalMovementsFilters}
+          onFiltersChange={setGlobalMovementsFilters}
         />;
       case ViewState.TAX_ASSESSMENT:
         return <TaxAssessment />;

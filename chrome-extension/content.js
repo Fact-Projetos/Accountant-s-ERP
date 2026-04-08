@@ -79,16 +79,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type !== 'EXECUTE_STEP') return false;
 
     const { step, client } = message;
-    console.log('[Fact Robot CS] Executando:', step.action, '| Seletor:', step.selector);
+    console.log('[Fact Robot CS] Executando:', step.action, '| Seletor:', step.selector, '| Frame:', window.self === window.top ? 'Main' : 'Iframe');
 
     executeStep(step, client)
         .then(() => {
-            console.log('[Fact Robot CS] Sucesso:', step.action);
+            console.log('[Fact Robot CS] Sucesso neste frame!');
             sendResponse({ success: true });
         })
         .catch((err) => {
-            console.error('[Fact Robot CS] Erro:', step.action, err.message);
-            sendResponse({ success: false, error: err.message });
+            // Só enviamos o erro se formos o frame principal (Top Frame)
+            // Isso evita que um erro de "não encontrado" em um frame vazio
+            // sobreponha um sucesso em um iframe que realmente tem o campo.
+            if (window.self === window.top) {
+                console.log('[Fact Robot CS] Falha no frame principal. Aguardando possíveis iframes...');
+                setTimeout(() => {
+                    sendResponse({ success: false, error: err.message });
+                }, 3000);
+            } else {
+                console.log('[Fact Robot CS] Iframe falhou. Silencioso para permitir resposta de outros frames.');
+            }
         });
 
     return true; // resposta assincrona

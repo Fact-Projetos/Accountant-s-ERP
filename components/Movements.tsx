@@ -89,12 +89,26 @@ const Movements: React.FC<{
   initialClients?: Client[],
   onClientsUpdate?: (data: Client[]) => void,
   initialCityLinks?: { city: string, url: string }[],
-  onCityLinksUpdate?: (data: { city: string, url: string }[]) => void
-}> = ({ initialClients, onClientsUpdate, initialCityLinks, onCityLinksUpdate }) => {
-  const [filterClient, setFilterClient] = useState<string>('');
-  const [filterMonth, setFilterMonth] = useState<string>('');
-  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
-  const [filterCity, setFilterCity] = useState<string>('');
+  onCityLinksUpdate?: (data: { city: string, url: string }[]) => void,
+  filters?: { client: string, month: string, year: string, city: string },
+  onFiltersChange?: (filters: any) => void
+}> = ({ initialClients, onClientsUpdate, initialCityLinks, onCityLinksUpdate, filters, onFiltersChange }) => {
+  // Use global filters if provided, otherwise fallback to local state (for safety)
+  const [localFilterClient, setLocalFilterClient] = useState<string>('');
+  const [localFilterMonth, setLocalFilterMonth] = useState<string>('');
+  const [localFilterYear, setLocalFilterYear] = useState<string>(String(new Date().getFullYear()));
+  const [localFilterCity, setLocalFilterCity] = useState<string>('');
+
+  const filterClient = filters?.client ?? localFilterClient;
+  const filterMonth = filters?.month ?? localFilterMonth;
+  const filterYear = filters?.year ?? localFilterYear;
+  const filterCity = filters?.city ?? localFilterCity;
+
+  const setFilterClient = (val: string) => onFiltersChange ? onFiltersChange({ ...filters, client: val }) : setLocalFilterClient(val);
+  const setFilterMonth = (val: string) => onFiltersChange ? onFiltersChange({ ...filters, month: val }) : setLocalFilterMonth(val);
+  const setFilterYear = (val: string) => onFiltersChange ? onFiltersChange({ ...filters, year: val }) : setLocalFilterYear(val);
+  const setFilterCity = (val: string) => onFiltersChange ? onFiltersChange({ ...filters, city: val }) : setLocalFilterCity(val);
+
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const [clients, setClients] = useState<Partial<Client>[]>(initialClients || []);
