@@ -94,31 +94,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // resposta assincrona
 });
 
+// ─── Encontra elemento com retry ────────────────────────────────
+async function waitForElement(selector, timeout = 10000) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+        const el = document.querySelector(selector);
+        if (el) return el;
+        await new Promise(r => setTimeout(r, 500));
+    }
+    throw new Error('Timeout: Elemento nao encontrado: ' + selector);
+}
+
 // ─── Executa um passo da automacao ──────────────────────────────
 async function executeStep(step, client) {
     const monthIdx = getMonthIndex(client.month);
     const year = parseInt(client.year);
 
+    console.log('[Fact Robot CS] Aguardando elemento:', step.selector);
+    
     switch (step.action) {
 
         case 'digitar_usuario': {
-            const el = document.querySelector(step.selector);
-            if (!el) throw new Error('Elemento nao encontrado: ' + step.selector);
+            const el = await waitForElement(step.selector);
             await simulateTyping(el, client.login);
             break;
         }
 
         case 'digitar_senha': {
-            const el = document.querySelector(step.selector);
-            if (!el) throw new Error('Elemento nao encontrado: ' + step.selector);
+            const el = await waitForElement(step.selector);
             await simulateTyping(el, client.password);
             break;
         }
 
         case 'clicar_elemento':
         case 'clicar_download': {
-            const el = document.querySelector(step.selector);
-            if (!el) throw new Error('Elemento nao encontrado: ' + step.selector);
+            const el = await waitForElement(step.selector);
             el.click();
             break;
         }
@@ -205,8 +215,8 @@ async function executeStep(step, client) {
                 } catch (e) { }
             }
 
-            // Pequeno delay para animacao do modal
-            await new Promise(r => setTimeout(r, 500));
+            // Aumentado delay para o portal reagir ao fechamento
+            await new Promise(r => setTimeout(r, 1500));
 
             console.log('[Fact Robot CS] Modal fechado?', fechou);
             break;
@@ -214,32 +224,28 @@ async function executeStep(step, client) {
 
         case 'email_fixo':
         case 'digitar_texto': {
-            const el = document.querySelector(step.selector);
-            if (!el) throw new Error('Elemento nao encontrado: ' + step.selector);
+            const el = await waitForElement(step.selector);
             await simulateTyping(el, step.format || '');
             break;
         }
 
         case 'data_inicial': {
             const firstDay = new Date(year, monthIdx, 1);
-            const el = document.querySelector(step.selector);
-            if (!el) throw new Error('Elemento nao encontrado: ' + step.selector);
+            const el = await waitForElement(step.selector);
             await simulateTyping(el, formatDate(firstDay, step.format));
             break;
         }
 
         case 'data_final': {
             const lastDay = new Date(year, monthIdx + 1, 0);
-            const el = document.querySelector(step.selector);
-            if (!el) throw new Error('Elemento nao encontrado: ' + step.selector);
+            const el = await waitForElement(step.selector);
             await simulateTyping(el, formatDate(lastDay, step.format));
             break;
         }
 
         case 'competencia': {
             const compDate = new Date(year, monthIdx, 1);
-            const el = document.querySelector(step.selector);
-            if (!el) throw new Error('Elemento nao encontrado: ' + step.selector);
+            const el = await waitForElement(step.selector);
             await simulateTyping(el, formatDate(compDate, step.format));
             break;
         }

@@ -625,8 +625,8 @@ const Movements: React.FC<{
           const tabId = openData.tabId;
           setAutomationMessage(`Portal aberto.`);
 
-          // Pequeno delay para a página carregar
-          await new Promise(r => setTimeout(r, 3000));
+          // Pequeno delay para a página carregar (aumentado para 5s)
+          await new Promise(r => setTimeout(r, 5000));
 
           // 2. Executar Passos
           for (let i = 0; i < automation.steps.length; i++) {
@@ -636,6 +636,9 @@ const Movements: React.FC<{
               prev.map((s, idx) => idx === i ? { ...s, status: 'running' } : s)
             );
             setAutomationMessage(`Executando: ${ACTION_LABELS[step.action] || step.action}`);
+
+            // Delay aleatório entre passos (500ms - 1000ms)
+            await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
 
             const stepData: any = await new Promise((resolve) => {
               chrome.runtime.sendMessage(CHROME_EXTENSION_ID, {
