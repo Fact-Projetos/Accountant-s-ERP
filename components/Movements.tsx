@@ -1,3 +1,4 @@
+declare const chrome: any;
 import React, { useState, useEffect, useRef } from 'react';
 import { Download, ExternalLink, Search, Filter, Loader2, RefreshCw, Bot, X, CheckCircle2, AlertCircle, Play, Clock, Square, CheckSquare, MinusSquare } from 'lucide-react';
 import { Client } from '../types';
@@ -476,6 +477,7 @@ const Movements: React.FC<{
 
   // ─── Automation Server (Playwright) communication ──────────────
   const AUTOMATION_SERVER = 'http://localhost:3099';
+  const CHROME_EXTENSION_ID = 'lmiplgkhmibdakinalekpagockbelmpj';
 
   const checkAutomationServer = async (): Promise<boolean> => {
     try {
@@ -485,6 +487,26 @@ const Movements: React.FC<{
     } catch {
       return false;
     }
+  };
+
+  const checkExtension = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        resolve(false);
+        return;
+      }
+      try {
+        chrome.runtime.sendMessage(CHROME_EXTENSION_ID, { type: 'FACT_PING' }, (response) => {
+          if (chrome.runtime.lastError || !response) {
+            resolve(false);
+          } else {
+            resolve(response.success === true);
+          }
+        });
+      } catch {
+        resolve(false);
+      }
+    });
   };
 
   // ─── Execute steps for a single company ────────────────────────
@@ -581,42 +603,97 @@ const Movements: React.FC<{
       }
 
     } else {
-      // ─── Fallback: window.open (limited by cross-origin) ───────
-      setAutomationMessage('Servidor de automacao offline. Inicie com: npm start na pasta automation-server');
+      // ─── Tentar via Extensão (Browser Mode) ────────────────────
+      const extensionOnline = await checkExtension();
 
-      const win = window.open(automation.url, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
-      if (!win) {
-        setAutomationMessage('Popup bloqueado! Permita popups.');
-        return false;
-      }
-      automationWindowRef.current = win;
-
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      for (let i = 0; i < automation.steps.length; i++) {
-        const step = automation.steps[i];
-
-        setStepStatuses(prev =>
-          prev.map((s, idx) => idx === i ? { ...s, status: 'running' } : s)
-        );
-        setAutomationMessage(`Passo ${i + 1}/${automation.steps.length}: ${ACTION_LABELS[step.action] || step.action}`);
+      if (extensionOnline) {
+        setAutomationMessage(`Conectado à extensão. Abrindo portal...`);
 
         try {
-          await executeStepFallback(win, step, client);
-          setStepStatuses(prev =>
-            prev.map((s, idx) => idx === i ? { ...s, status: 'success' } : s)
-          );
+          // 1. Abrir Aba
+          const openData: any = await new Promise((resolve) => {
+            chrome.runtime.sendMessage(CHROME_EXTENSION_ID, {
+              type: 'FACT_OPEN_URL',
+              url: automation.url
+            }, (res) => resolve(res));
+          });
+
+          if (!openData?.success || !openData.tabId) {
+            throw new Error(openData?.error || 'Erro ao abrir aba via extensão');
+          }
+
+          const tabId = openData.tabId;
+          setAutomationMessage(`Portal aberto.`);
+
+          // Pequeno delay para a página carregar
+          await new Promise(r => setTimeout(r, 3000));
+
+          // 2. Executar Passos
+          for (let i = 0; i < automation.steps.length; i++) {
+            const step = automation.steps[i];
+
+            setStepStatuses(prev =>
+              prev.map((s, idx) => idx === i ? { ...s, status: 'running' } : s)
+            );
+            setAutomationMessage(`Executando: ${ACTION_LABELS[step.action] || step.action}`);
+
+            const stepData: any = await new Promise((resolve) => {
+              chrome.runtime.sendMessage(CHROME_EXTENSION_ID, {
+                type: 'FACT_EXECUTE_STEP',
+                tabId,
+                step,
+                client
+              }, (res) => resolve(res));
+            });
+
+            if (!stepData?.success) {
+              setStepStatuses(prev =>
+                prev.map((s, idx) => idx === i ? { ...s, status: 'error', message: stepData?.error } : s)
+              );
+              return false;
+            }
+
+            setStepStatuses(prev =>
+              prev.map((s, idx) => idx === i ? { ...s, status: 'success' } : s)
+            );
+            await new Promise(r => setTimeout(r, 500));
+          }
+
+          setAutomationMessage('Concluído via extensão!');
+          return true;
+
         } catch (err: any) {
-          setStepStatuses(prev =>
-            prev.map((s, idx) => idx === i ? { ...s, status: 'error', message: err.message } : s)
-          );
+          setAutomationMessage(`Erro na extensão: ${err.message}`);
           return false;
         }
 
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
+      } else {
+        // ─── Fallback: window.open (Vai falhar com CORS, mas deixamos o erro claro) ───
+        setAutomationMessage('Robô Offline. Instale a extensão ou inicie o servidor local.');
 
-      return true;
+        const win = window.open(automation.url, '_blank', 'width=1200,height=800');
+        if (!win) {
+          setAutomationMessage('Popup bloqueado!');
+          return false;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        for (let i = 0; i < automation.steps.length; i++) {
+          const step = automation.steps[i];
+          setStepStatuses(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'running' } : s));
+
+          try {
+            await executeStepFallback(win, step, client);
+            setStepStatuses(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'success' } : s));
+          } catch (err: any) {
+            setStepStatuses(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'error', message: err.message } : s));
+            return false;
+          }
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        return true;
+      }
     }
   };
 
