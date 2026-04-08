@@ -103,12 +103,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // resposta assincrona
 });
 
-// ─── Encontra elemento com retry ────────────────────────────────
+// ─── Encontra elemento com retry e fallback de texto ─────────────
 async function waitForElement(selector, timeout = 10000) {
     const start = Date.now();
     while (Date.now() - start < timeout) {
-        const el = document.querySelector(selector);
+        let el = null;
+
+        // Estrategia 1: Seletor de Texto (customizado)
+        if (selector.startsWith('text:')) {
+            const targetText = selector.replace('text:', '').trim().toLowerCase();
+            const elements = document.querySelectorAll('a, button, span, div, p');
+            el = Array.from(elements).find(e => 
+                e.textContent.replace(/\s/g, ' ').trim().toLowerCase().includes(targetText)
+            );
+        } else {
+            // Estrategia 2: Seletor CSS Normal
+            el = document.querySelector(selector);
+        }
+
         if (el) return el;
+
+        // Se falhou, tenta em iframes (se for seletor CSS)
+        if (!selector.startsWith('text:')) {
+            const iframes = document.querySelectorAll('iframe');
+            for (const iframe of iframes) {
+                try {
+                    const doc = iframe.contentDocument || iframe.contentWindow.document;
+                    el = doc.querySelector(selector);
+                    if (el) return el;
+                } catch (e) {
+                    // Ignora erros de cross-origin em iframes
+                }
+            }
+        }
+
         await new Promise(r => setTimeout(r, 500));
     }
     throw new Error('Timeout: Elemento nao encontrado: ' + selector);
@@ -138,7 +166,27 @@ async function executeStep(step, client) {
         case 'clicar_elemento':
         case 'clicar_download': {
             const el = await waitForElement(step.selector);
+            console.log('[Fact Robot CS] Clicando em elemento:', el);
+            
+            // Tenta clique normal
             el.click();
+
+            // Fallback: Dispatch Eventos de Mouse se o .click() falhar ou nao for suficiente
+            setTimeout(() => {
+                el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+                el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+            }, 50);
+
+            // Ultimo recurso: Eval JS click direto no elemento
+            try {
+                if (el.tagName === 'A' && el.href.startsWith('javascript:')) {
+                    const code = el.href.replace('javascript:', '');
+                    console.log('[Fact Robot CS] Executando href javascript:', code);
+                    window.eval(code);
+                }
+            } catch (e) {
+                console.log('[Fact Robot CS] Erro ao executar JS do link:', e.message);
+            }
             break;
         }
 
