@@ -93,9 +93,15 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
   }, [initialData]);
 
   useEffect(() => {
-    if (!initialData || initialData.length === 0) {
-      fetchClients();
-    }
+    // Standardize mount effect to always fetch data to ensure freshness during navigation
+    fetchClients();
+
+    // Listen for global refresh events (Real-time)
+    const handleRefresh = (e: any) => {
+      if (e.detail.table === 'companies') fetchClients(true);
+    };
+    window.addEventListener('fact-db-change', handleRefresh);
+    return () => window.removeEventListener('fact-db-change', handleRefresh);
   }, []);
 
   // Use node-forge to automatically extract certificate dates when file and password are provided

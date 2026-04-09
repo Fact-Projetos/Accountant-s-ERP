@@ -240,11 +240,24 @@ const AccountantFinancial: React.FC = () => {
         fetchCompanies();
         fetchFinancialGroups();
         fetchServiceTypes();
+
+        // Listen for global refresh events (Real-time)
+        const handleRefresh = (e: any) => {
+            if (e.detail.table === 'companies' || e.detail.table === 'accountant_financial' || e.detail.table === 'financial_groups') {
+                fetchCompanies();
+                fetchAllRecords();
+            }
+        };
+        window.addEventListener('fact-db-change', handleRefresh);
+
         // Safety timeout: prevent loading from getting stuck
         const timeout = setTimeout(() => {
             setIsLoading(false);
         }, 10000);
-        return () => clearTimeout(timeout);
+        return () => {
+            window.removeEventListener('fact-db-change', handleRefresh);
+            clearTimeout(timeout);
+        };
     }, []);
     useEffect(() => { fetchAllRecords(); }, [selectedYear, companies]);
     useEffect(() => { if (activeTab === 'standalone') fetchStandaloneServices(); }, [activeTab]);

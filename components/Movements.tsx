@@ -148,14 +148,27 @@ const Movements: React.FC<{
   }, [initialCityLinks]);
 
   useEffect(() => {
-    if (clients.length === 0) fetchClients();
-    if (cityLinks.length === 0) fetchCityLinks();
+    // Force fetch on mount to ensure synchronization across navigation
+    fetchClients();
+    fetchCityLinks();
+    
+    // Listen for global refresh events (Real-time)
+    const handleRefresh = (e: any) => {
+      if (e.detail.table === 'companies' || e.detail.table === 'movements') {
+        fetchClients(true);
+      }
+    };
+    window.addEventListener('fact-db-change', handleRefresh);
+
     // Safety timeout: if loading takes more than 10s, force stop
     const timeout = setTimeout(() => {
       setIsLoading(false);
       setIsRefreshing(false);
     }, 10000);
-    return () => clearTimeout(timeout);
+    return () => {
+      window.removeEventListener('fact-db-change', handleRefresh);
+      clearTimeout(timeout);
+    };
   }, []);
 
   useEffect(() => {
@@ -170,7 +183,9 @@ const Movements: React.FC<{
     }
   };
 
-  const fetchClients = async () => {
+  const fetchClients = async (isBackground = false) => {
+    if (!isBackground) setIsLoading(true);
+    else setIsRefreshing(true);
     try {
       const { data, error } = await supabase
         .from('companies')

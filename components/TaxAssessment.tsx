@@ -64,14 +64,26 @@ const TaxAssessment: React.FC<{
     }, [initialCompanies, initialRows]);
 
     useEffect(() => {
-        if (companies.length === 0) fetchCompanies();
+        // Always fetch on mount to ensure freshness as per user synchronization requirements
+        fetchCompanies();
         
+        // Listen for global refresh events (Real-time)
+        const handleRefresh = (e: any) => {
+            if (e.detail.table === 'companies' || e.detail.table === 'tax_assessments') {
+                fetchCompanies();
+            }
+        };
+        window.addEventListener('fact-db-change', handleRefresh);
+
         // Safety timeout: prevent loading from getting stuck
         const timeout = setTimeout(() => {
             setIsLoading(false);
             setIsRefreshing(false);
         }, 8000); // Reduced to 8s for better UX
-        return () => clearTimeout(timeout);
+        return () => {
+            window.removeEventListener('fact-db-change', handleRefresh);
+            clearTimeout(timeout);
+        };
     }, []);
 
     useEffect(() => {

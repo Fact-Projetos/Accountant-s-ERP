@@ -134,6 +134,33 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ─── Real-time Synchronization Layer ──────────────────────────
+  useEffect(() => {
+    if (!isLoggedIn || userRole !== 'Contador') return;
+
+    console.log('[Fact ERP] Initializing Real-time listeners...');
+
+    const channel = supabase
+      .channel('db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, () => {
+        console.log('[Real-time] Companies changed, triggering update...');
+        window.dispatchEvent(new CustomEvent('fact-db-change', { detail: { table: 'companies' } }));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tax_assessments' }, () => {
+        console.log('[Real-time] Tax Assessments changed...');
+        window.dispatchEvent(new CustomEvent('fact-db-change', { detail: { table: 'tax_assessments' } }));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'movements' }, () => {
+        console.log('[Real-time] Movements changed...');
+        window.dispatchEvent(new CustomEvent('fact-db-change', { detail: { table: 'movements' } }));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isLoggedIn, userRole]);
+
   const activeCompanyId = impersonatedCompanyId || profileCompanyId;
 
   useEffect(() => {
