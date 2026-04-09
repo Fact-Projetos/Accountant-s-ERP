@@ -236,25 +236,37 @@ const AccountantFinancial: React.FC = () => {
     const [groupForm, setGroupForm] = useState<Partial<FinancialGroup> | null>(null);
     const [isSavingGroup, setIsSavingGroup] = useState(false);
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+    // Persistence guards
+    const isMounted = React.useRef(true);
+    const refreshTimer = React.useRef<NodeJS.Timeout | null>(null);
     useEffect(() => {
+        isMounted.current = true;
         fetchCompanies();
         fetchFinancialGroups();
         fetchServiceTypes();
 
-        // Listen for global refresh events (Real-time)
+        // Listen for global refresh events (Real-time) - with DEBOUNCE
         const handleRefresh = (e: any) => {
             if (e.detail.table === 'companies' || e.detail.table === 'accountant_financial' || e.detail.table === 'financial_groups') {
-                fetchCompanies();
-                fetchAllRecords();
+                if (refreshTimer.current) clearTimeout(refreshTimer.current);
+                refreshTimer.current = setTimeout(() => {
+                    if (isMounted.current) {
+                        fetchCompanies();
+                        fetchAllRecords();
+                    }
+                }, 500);
             }
         };
         window.addEventListener('fact-db-change', handleRefresh);
 
         // Safety timeout: prevent loading from getting stuck
         const timeout = setTimeout(() => {
-            setIsLoading(false);
+            if (isMounted.current) setIsLoading(false);
         }, 10000);
         return () => {
+            isMounted.current = false;
+            if (refreshTimer.current) clearTimeout(refreshTimer.current);
             window.removeEventListener('fact-db-change', handleRefresh);
             clearTimeout(timeout);
         };

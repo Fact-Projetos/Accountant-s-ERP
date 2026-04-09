@@ -134,6 +134,10 @@ const Movements: React.FC<{
   const [currentBatchIdx, setCurrentBatchIdx] = useState(-1);
   const [isBatchMode, setIsBatchMode] = useState(false);
 
+  // Persistence guards to prevent "stuck loading" on rapid navigation or automation floods
+  const isMounted = React.useRef(true);
+  const refreshTimer = React.useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (initialClients && initialClients.length > 0) {
       setClients(initialClients);
@@ -152,20 +156,28 @@ const Movements: React.FC<{
     fetchClients();
     fetchCityLinks();
     
-    // Listen for global refresh events (Real-time)
+    // Listen for global refresh events (Real-time) - with DEBOUNCE
     const handleRefresh = (e: any) => {
       if (e.detail.table === 'companies' || e.detail.table === 'movements') {
-        fetchClients(true);
+        if (refreshTimer.current) clearTimeout(refreshTimer.current);
+        refreshTimer.current = setTimeout(() => {
+          if (isMounted.current) fetchClients(true);
+        }, 500); // 500ms debounce
       }
     };
     window.addEventListener('fact-db-change', handleRefresh);
 
     // Safety timeout: if loading takes more than 10s, force stop
     const timeout = setTimeout(() => {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (isMounted.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }, 10000);
+
     return () => {
+      isMounted.current = false;
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
       window.removeEventListener('fact-db-change', handleRefresh);
       clearTimeout(timeout);
     };
@@ -177,22 +189,24 @@ const Movements: React.FC<{
 
   const fetchCityLinks = async () => {
     const { data } = await supabase.from('city_links').select('city, url');
-    if (data) {
+    if (data && isMounted.current) {
       setCityLinks(data);
       if (onCityLinksUpdate) onCityLinksUpdate(data);
     }
   };
 
   const fetchClients = async (isBackground = false) => {
+    if (!isMounted.current) return;
     if (!isBackground) setIsLoading(true);
     else setIsRefreshing(true);
+
     try {
       const { data, error } = await supabase
         .from('companies')
         .select('id, client_seq_id, name, code, city, created_at')
         .order('client_seq_id', { ascending: true });
       if (error) throw error;
-      if (data) {
+      if (data && isMounted.current) {
         // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
         const sorted = [...data].sort((a: any, b: any) => {
           const codeA = a.code?.replace(/-/g, '').trim() || '';
@@ -223,7 +237,10 @@ const Movements: React.FC<{
     } catch (err) {
       console.error('Unexpected error fetching clients:', err);
     } finally {
-      setIsLoading(false);
+      if (isMounted.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   };
 

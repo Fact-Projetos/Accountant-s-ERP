@@ -85,6 +85,10 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Persistence guards
+  const isMounted = React.useRef(true);
+  const refreshTimer = React.useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (initialData && initialData.length > 0) {
       setClients(initialData);
@@ -93,15 +97,25 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
   }, [initialData]);
 
   useEffect(() => {
+    isMounted.current = true;
     // Standardize mount effect to always fetch data to ensure freshness during navigation
     fetchClients();
 
-    // Listen for global refresh events (Real-time)
+    // Listen for global refresh events (Real-time) - with DEBOUNCE
     const handleRefresh = (e: any) => {
-      if (e.detail.table === 'companies') fetchClients(true);
+      if (e.detail.table === 'companies') {
+        if (refreshTimer.current) clearTimeout(refreshTimer.current);
+        refreshTimer.current = setTimeout(() => {
+          if (isMounted.current) fetchClients(true);
+        }, 500); // 500ms debounce
+      }
     };
     window.addEventListener('fact-db-change', handleRefresh);
-    return () => window.removeEventListener('fact-db-change', handleRefresh);
+    return () => {
+      isMounted.current = false;
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      window.removeEventListener('fact-db-change', handleRefresh);
+    };
   }, []);
 
   // Use node-forge to automatically extract certificate dates when file and password are provided
@@ -156,6 +170,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
   }, [formData.certificateBase64, formData.certificatePassword]);
 
   const fetchClients = async (isBackground = false) => {
+    if (!isMounted.current) return;
     if (!isBackground) setIsLoading(true);
     else setIsRefreshing(true);
 
@@ -166,7 +181,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
 
       if (error) throw error;
 
-      if (data) {
+      if (data && isMounted.current) {
         // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
         const sorted = [...data].sort((a: any, b: any) => {
           const codeA = String(a.code || '').replace(/-/g, '').trim();
@@ -232,8 +247,10 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
       console.error('Error fetching clients:', error);
       if (!isBackground) alert('Erro ao buscar clientes: ' + (error.message || 'Erro desconhecido'));
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (isMounted.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   };
 

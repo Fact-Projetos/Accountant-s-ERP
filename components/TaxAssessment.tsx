@@ -53,6 +53,10 @@ const TaxAssessment: React.FC<{
     const [sortField, setSortField] = useState<string>('companyName');
     const [sortAsc, setSortAsc] = useState(true);
 
+    // Persistence guards
+    const isMounted = React.useRef(true);
+    const refreshTimer = React.useRef<NodeJS.Timeout | null>(null);
+
     useEffect(() => {
         if (initialCompanies && initialCompanies.length > 0) {
             setCompanies(initialCompanies);
@@ -64,23 +68,31 @@ const TaxAssessment: React.FC<{
     }, [initialCompanies, initialRows]);
 
     useEffect(() => {
+        isMounted.current = true;
         // Always fetch on mount to ensure freshness as per user synchronization requirements
         fetchCompanies();
         
-        // Listen for global refresh events (Real-time)
+        // Listen for global refresh events (Real-time) - with DEBOUNCE
         const handleRefresh = (e: any) => {
             if (e.detail.table === 'companies' || e.detail.table === 'tax_assessments') {
-                fetchCompanies();
+                if (refreshTimer.current) clearTimeout(refreshTimer.current);
+                refreshTimer.current = setTimeout(() => {
+                    if (isMounted.current) fetchCompanies();
+                }, 500); // 500ms debounce
             }
         };
         window.addEventListener('fact-db-change', handleRefresh);
 
         // Safety timeout: prevent loading from getting stuck
         const timeout = setTimeout(() => {
-            setIsLoading(false);
-            setIsRefreshing(false);
+            if (isMounted.current) {
+                setIsLoading(false);
+                setIsRefreshing(false);
+            }
         }, 8000); // Reduced to 8s for better UX
         return () => {
+            isMounted.current = false;
+            if (refreshTimer.current) clearTimeout(refreshTimer.current);
             window.removeEventListener('fact-db-change', handleRefresh);
             clearTimeout(timeout);
         };
@@ -93,49 +105,57 @@ const TaxAssessment: React.FC<{
     }, [companies, filterYear, filterMonth]);
 
     const fetchCompanies = async () => {
+        if (!isMounted.current) return;
+        setIsRefreshing(true);
         try {
             const { data, error } = await supabase
                 .from('companies')
                 .select('id, client_seq_id, code, name, cnpj, city, created_at');
             if (error) throw error;
 
-            // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
-            const sorted = (data || []).sort((a: any, b: any) => {
-                const codeA = a.code?.replace(/-/g, '').trim() || '';
-                const codeB = b.code?.replace(/-/g, '').trim() || '';
-                const hasCodeA = codeA.length > 0;
-                const hasCodeB = codeB.length > 0;
-                if (hasCodeA && !hasCodeB) return -1;
-                if (!hasCodeA && hasCodeB) return 1;
-                if (!hasCodeA && !hasCodeB) {
-                    const dateA = new Date(a.created_at || 0).getTime() || 0;
-                    const dateB = new Date(b.created_at || 0).getTime() || 0;
-                    return dateA - dateB;
-                }
-                return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
-            });
+            if (data && isMounted.current) {
+                // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
+                const sorted = (data || []).sort((a: any, b: any) => {
+                    const codeA = a.code?.replace(/-/g, '').trim() || '';
+                    const codeB = b.code?.replace(/-/g, '').trim() || '';
+                    const hasCodeA = codeA.length > 0;
+                    const hasCodeB = codeB.length > 0;
+                    if (hasCodeA && !hasCodeB) return -1;
+                    if (!hasCodeA && hasCodeB) return 1;
+                    if (!hasCodeA && !hasCodeB) {
+                        const dateA = new Date(a.created_at || 0).getTime() || 0;
+                        const dateB = new Date(b.created_at || 0).getTime() || 0;
+                        return dateA - dateB;
+                    }
+                    return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+                });
 
-            // Map the snake_case DB column to camelCase for the frontend UI
-            const mappedData = sorted.map((d: any, idx: number) => ({
-                id: d.id,
-                clientSeqId: d.client_seq_id || 0,
-                tempSeqId: idx + 1,
-                code: d.code || '',
-                name: d.name,
-                cnpj: d.cnpj,
-                city: d.city
-            })) as CompanyData[];
+                // Map the snake_case DB column to camelCase for the frontend UI
+                const mappedData = sorted.map((d: any, idx: number) => ({
+                    id: d.id,
+                    clientSeqId: d.client_seq_id || 0,
+                    tempSeqId: idx + 1,
+                    code: d.code || '',
+                    name: d.name,
+                    cnpj: d.cnpj,
+                    city: d.city
+                })) as CompanyData[];
 
-            setCompanies(mappedData);
-            if (onCompaniesUpdate) onCompaniesUpdate(mappedData);
+                setCompanies(mappedData);
+                if (onCompaniesUpdate) onCompaniesUpdate(mappedData);
+            }
         } catch (err) {
             console.error('Error fetching companies:', err);
         } finally {
-            setIsLoading(false);
+            if (isMounted.current) {
+                setIsLoading(false);
+                setIsRefreshing(false);
+            }
         }
     };
 
     const fetchAssessments = async () => {
+        if (!isMounted.current) return;
         const isInitial = rows.length === 0;
         if (isInitial) setIsLoading(true); else setIsRefreshing(true);
 
@@ -176,13 +196,17 @@ const TaxAssessment: React.FC<{
                 };
             });
 
-            setRows(buildRows);
-            if (onRowsUpdate) onRowsUpdate(buildRows);
+            if (isMounted.current) {
+                setRows(buildRows);
+                if (onRowsUpdate) onRowsUpdate(buildRows);
+            }
         } catch (err) {
             console.error('Error fetching assessments:', err);
         } finally {
-            setIsLoading(false);
-            setIsRefreshing(false);
+            if (isMounted.current) {
+                setIsLoading(false);
+                setIsRefreshing(false);
+            }
         }
     };
 
