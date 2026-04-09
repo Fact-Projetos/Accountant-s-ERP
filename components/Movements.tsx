@@ -176,7 +176,7 @@ const Movements: React.FC<{
         .from('companies')
         .select('id, client_seq_id, name, code, city, created_at')
         .order('client_seq_id', { ascending: true });
-      if (error) { console.error('Error fetching clients:', error); return; }
+      if (error) throw error;
       if (data) {
         // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
         const sorted = [...data].sort((a: any, b: any) => {
@@ -206,7 +206,9 @@ const Movements: React.FC<{
         if (onClientsUpdate) onClientsUpdate(mapped as any);
       }
     } catch (err) {
-      console.error('Unexpected error:', err);
+      console.error('Unexpected error fetching clients:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 

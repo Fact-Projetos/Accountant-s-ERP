@@ -33,6 +33,7 @@ const App: React.FC = () => {
   // Global Cache to prevent "flickering" between tabs
   const [globalClients, setGlobalClients] = useState<any[]>([]);
   const [globalCityLinks, setGlobalCityLinks] = useState<any[]>([]);
+  const [globalTaxAssessments, setGlobalTaxAssessments] = useState<any[]>([]);
   const [globalMovementsFilters, setGlobalMovementsFilters] = useState({
     client: '',
     month: '',
@@ -41,6 +42,7 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
+    console.log('[Fact ERP] Initializing session...');
     // Check active sessions and sets the user
     const checkSession = async () => {
       // 1. Check custom client session (from companies table)
@@ -229,7 +231,12 @@ const App: React.FC = () => {
           onFiltersChange={setGlobalMovementsFilters}
         />;
       case ViewState.TAX_ASSESSMENT:
-        return <TaxAssessment />;
+        return <TaxAssessment
+          initialCompanies={globalClients}
+          onCompaniesUpdate={setGlobalClients}
+          initialRows={globalTaxAssessments}
+          onRowsUpdate={setGlobalTaxAssessments}
+        />;
       case ViewState.LINKS_NFSE:
         return <NfsLinks
           initialData={globalCityLinks}

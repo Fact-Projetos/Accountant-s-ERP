@@ -33,7 +33,12 @@ const MONTHS = [
 
 const YEARS = ['2026', '2025', '2024', '2023'];
 
-const TaxAssessment: React.FC = () => {
+const TaxAssessment: React.FC<{
+    initialCompanies?: CompanyData[],
+    onCompaniesUpdate?: (data: CompanyData[]) => void,
+    initialRows?: AssessmentRow[],
+    onRowsUpdate?: (data: AssessmentRow[]) => void
+}> = ({ initialCompanies, onCompaniesUpdate, initialRows, onRowsUpdate }) => {
     const [filterClient, setFilterClient] = useState('');
     const [filterMonth, setFilterMonth] = useState('');
     const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
@@ -41,20 +46,31 @@ const TaxAssessment: React.FC = () => {
     const [filterAssessment, setFilterAssessment] = useState('');
     const [filterSent, setFilterSent] = useState('');
 
-    const [companies, setCompanies] = useState<CompanyData[]>([]);
-    const [rows, setRows] = useState<AssessmentRow[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [companies, setCompanies] = useState<CompanyData[]>(initialCompanies || []);
+    const [rows, setRows] = useState<AssessmentRow[]>(initialRows || []);
+    const [isLoading, setIsLoading] = useState(!initialCompanies || initialCompanies.length === 0);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [sortField, setSortField] = useState<string>('companyName');
     const [sortAsc, setSortAsc] = useState(true);
 
     useEffect(() => {
-        fetchCompanies();
+        if (initialCompanies && initialCompanies.length > 0) {
+            setCompanies(initialCompanies);
+            setIsLoading(false);
+        }
+        if (initialRows && initialRows.length > 0) {
+            setRows(initialRows);
+        }
+    }, [initialCompanies, initialRows]);
+
+    useEffect(() => {
+        if (companies.length === 0) fetchCompanies();
+        
         // Safety timeout: prevent loading from getting stuck
         const timeout = setTimeout(() => {
             setIsLoading(false);
             setIsRefreshing(false);
-        }, 10000);
+        }, 8000); // Reduced to 8s for better UX
         return () => clearTimeout(timeout);
     }, []);
 
@@ -65,36 +81,46 @@ const TaxAssessment: React.FC = () => {
     }, [companies, filterYear, filterMonth]);
 
     const fetchCompanies = async () => {
-        const { data, error } = await supabase
-            .from('companies')
-            .select('id, client_seq_id, code, name, cnpj, city, created_at');
-        if (error) { console.error('Error fetching companies:', error); return; }
-        
-        // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
-        const sorted = (data || []).sort((a: any, b: any) => {
-          const codeA = a.code?.replace(/-/g, '').trim() || '';
-          const codeB = b.code?.replace(/-/g, '').trim() || '';
-          const hasCodeA = codeA.length > 0;
-          const hasCodeB = codeB.length > 0;
-          if (hasCodeA && !hasCodeB) return -1;
-          if (!hasCodeA && hasCodeB) return 1;
-          if (!hasCodeA && !hasCodeB) {
-            const dateA = new Date(a.created_at || 0).getTime() || 0;
-            const dateB = new Date(b.created_at || 0).getTime() || 0;
-            return dateA - dateB;
-          }
-          return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
-        });
-        
-        // Map the snake_case DB column to camelCase for the frontend UI
-        const mappedData = sorted.map((d: any, idx: number) => ({
-            ...d,
-            clientSeqId: d.client_seq_id || 0,
-            tempSeqId: idx + 1,
-            code: d.code || '',
-        }));
-        
-        setCompanies(mappedData as CompanyData[]);
+        try {
+            const { data, error } = await supabase
+                .from('companies')
+                .select('id, client_seq_id, code, name, cnpj, city, created_at');
+            if (error) throw error;
+
+            // Natural Sort: Numbers first, then '-' or empty at the bottom (by date)
+            const sorted = (data || []).sort((a: any, b: any) => {
+                const codeA = a.code?.replace(/-/g, '').trim() || '';
+                const codeB = b.code?.replace(/-/g, '').trim() || '';
+                const hasCodeA = codeA.length > 0;
+                const hasCodeB = codeB.length > 0;
+                if (hasCodeA && !hasCodeB) return -1;
+                if (!hasCodeA && hasCodeB) return 1;
+                if (!hasCodeA && !hasCodeB) {
+                    const dateA = new Date(a.created_at || 0).getTime() || 0;
+                    const dateB = new Date(b.created_at || 0).getTime() || 0;
+                    return dateA - dateB;
+                }
+                return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+            // Map the snake_case DB column to camelCase for the frontend UI
+            const mappedData = sorted.map((d: any, idx: number) => ({
+                id: d.id,
+                clientSeqId: d.client_seq_id || 0,
+                tempSeqId: idx + 1,
+                code: d.code || '',
+                name: d.name,
+                cnpj: d.cnpj,
+                city: d.city
+            })) as CompanyData[];
+
+            setCompanies(mappedData);
+            if (onCompaniesUpdate) onCompaniesUpdate(mappedData);
+        } catch (err) {
+            console.error('Error fetching companies:', err);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const fetchAssessments = async () => {
@@ -139,6 +165,7 @@ const TaxAssessment: React.FC = () => {
             });
 
             setRows(buildRows);
+            if (onRowsUpdate) onRowsUpdate(buildRows);
         } catch (err) {
             console.error('Error fetching assessments:', err);
         } finally {

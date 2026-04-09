@@ -103,11 +103,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // resposta assincrona
 });
 
-// ─── Encontra elemento com retry ────────────────────────────────
+// ─── Encontra elemento com retry e suporte a XPath ────────────────
 async function waitForElement(selector, timeout = 10000) {
     const start = Date.now();
     while (Date.now() - start < timeout) {
-        const el = document.querySelector(selector);
+        let el = null;
+        
+        if (selector.startsWith('//') || selector.startsWith('xpath=')) {
+            const cleanXPath = selector.startsWith('xpath=') ? selector.substring(6) : selector;
+            const result = document.evaluate(cleanXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+            el = result.singleNodeValue;
+        } else {
+            el = document.querySelector(selector);
+        }
+
         if (el) return el;
         await new Promise(r => setTimeout(r, 500));
     }
@@ -138,7 +147,14 @@ async function executeStep(step, client) {
         case 'clicar_elemento':
         case 'clicar_download': {
             const el = await waitForElement(step.selector);
-            el.click();
+            
+            // Tenta clicar via JS para maior compatibilidade (ex: botões ocultos ou customizados)
+            try {
+                el.click();
+            } catch (e) {
+                console.log('[Fact Robot CS] Erro no clique padrao, tentando via DispatchEvent...');
+                el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+            }
             break;
         }
 
