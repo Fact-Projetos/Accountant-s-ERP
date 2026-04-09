@@ -14,7 +14,6 @@ const CLIENT_VIEWS = [
   { id: ViewState.IMPORT_NFE, label: 'NF-e Importação' },
   { id: ViewState.NFE_ACTIONS, label: 'Ações c/ NF-e' },
   { id: ViewState.FISCAL_MATRIX, label: 'Matriz Fiscal' },
-  { id: ViewState.DOCUMENTS, label: 'Documentos' },
 ];
 
 // UI Components - Defined outside to prevent re-creation and loss of focus on re-render

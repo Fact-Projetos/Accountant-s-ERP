@@ -15,7 +15,6 @@ import Partners from './components/client/Partners';
 import ImportNfe from './components/client/ImportNfe';
 import NfeActions from './components/client/NfeActions';
 import FiscalMatrix from './components/client/FiscalMatrix';
-import Documents from './components/client/Documents';
 import Financial from './components/client/Financial';
 import AccountantFinancial from './components/AccountantFinancial';
 
@@ -268,11 +267,6 @@ const App: React.FC = () => {
         return <NfsLinks
           initialData={globalCityLinks}
           onDataUpdate={setGlobalCityLinks}
-        />;
-      case ViewState.DOCUMENTS:
-        return <Documents
-          companyIdOverride={impersonatedCompanyId}
-          roleOverride={impersonatedCompanyId ? 'Cliente' : undefined}
         />;
       case ViewState.ACC_FINANCIAL:
         return <AccountantFinancial />;

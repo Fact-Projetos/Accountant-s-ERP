@@ -28,7 +28,6 @@ const Layout: React.FC<LayoutProps> = ({ currentView, onNavigate, onLogout, user
     { id: ViewState.MOVEMENTS, label: 'Movimentos', icon: <FileBarChart2 className="w-[18px] h-[18px]" strokeWidth={1.5} /> },
     { id: ViewState.TAX_ASSESSMENT, label: 'Controle de Apurações', icon: <ClipboardCheck className="w-[18px] h-[18px]" strokeWidth={1.5} /> },
     { id: ViewState.LINKS_NFSE, label: 'Automação NFS-e', icon: <Bot className="w-[18px] h-[18px]" strokeWidth={1.5} /> },
-    { id: ViewState.DOCUMENTS, label: 'Documentos', icon: <FileText className="w-[18px] h-[18px]" strokeWidth={1.5} /> },
     { id: ViewState.ACC_FINANCIAL, label: 'Financeiro', icon: <Wallet className="w-[18px] h-[18px]" strokeWidth={1.5} /> },
   ];
 
@@ -42,7 +41,6 @@ const Layout: React.FC<LayoutProps> = ({ currentView, onNavigate, onLogout, user
     { id: ViewState.IMPORT_NFE, label: 'NF-e Importação', icon: <Import className="w-[18px] h-[18px]" strokeWidth={1.5} /> },
     { id: ViewState.NFE_ACTIONS, label: 'Ações c/ NF-e', icon: <FileWarning className="w-[18px] h-[18px]" strokeWidth={1.5} /> },
     { id: ViewState.FISCAL_MATRIX, label: 'Matriz Fiscal', icon: <Settings2 className="w-[18px] h-[18px]" strokeWidth={1.5} /> },
-    { id: ViewState.DOCUMENTS, label: 'Documentos', icon: <FileText className="w-[18px] h-[18px]" strokeWidth={1.5} /> },
   ];
 
   const menuItems = userRole === 'Contador'
