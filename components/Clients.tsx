@@ -1074,7 +1074,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                       {/* Id (sequencial da grade) */}
                       {!hiddenColumns.includes('id_seq') && (
                         <td className="px-2 py-1.5 border-r border-slate-100">
-                          <span className="text-[11px] font-mono font-bold text-slate-600">{String(idx + 1).padStart(3, '0')}</span>
+                          <span className="text-[11px] font-mono font-bold text-slate-600">{client.clientSeqId ? String(client.clientSeqId).padStart(3, '0') : '---'}</span>
                         </td>
                       )}
                       {/* Sistema (antigo Código) */}
