@@ -25,8 +25,8 @@ const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<'Contador' | 'Cliente'>('Contador');
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.HOME);
-  const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
-  const [profileCompanyId, setProfileCompanyId] = useState<string | null>(null);
+  const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<number | null>(null);
+  const [profileCompanyId, setProfileCompanyId] = useState<number | null>(null);
   const [visibleViews, setVisibleViews] = useState<ViewState[] | null>(null);
 
   // Global Cache to prevent "flickering" between tabs
@@ -186,7 +186,7 @@ const App: React.FC = () => {
     fetchPermissions();
   }, [userRole, activeCompanyId]);
 
-  const handleLogin = (success: boolean, role: 'Contador' | 'Cliente', companyId?: string) => {
+  const handleLogin = (success: boolean, role: 'Contador' | 'Cliente', companyId?: number) => {
     if (success) {
       setUserRole(role);
       setIsLoggedIn(true);
@@ -224,7 +224,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleImpersonate = (companyId: string) => {
+  const handleImpersonate = (companyId: number) => {
     setImpersonatedCompanyId(companyId);
     setUserRole('Cliente');
     setCurrentView(ViewState.MY_COMPANY);

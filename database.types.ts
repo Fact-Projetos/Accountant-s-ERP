@@ -41,13 +41,12 @@ export type Database = {
                     city: string | null
                     city_hall_login: string | null
                     city_hall_password: string | null
-                    client_seq_id: number | null
                     cnpj: string
                     code: string | null
                     complement: string | null
                     created_at: string
                     email: string | null
-                    id: string
+                    id: number
                     municipal_registration: string | null
                     name: string
                     neighborhood: string | null
@@ -68,13 +67,12 @@ export type Database = {
                     city?: string | null
                     city_hall_login?: string | null
                     city_hall_password?: string | null
-                    client_seq_id?: number | null
                     cnpj: string
                     code?: string | null
                     complement?: string | null
                     created_at?: string
                     email?: string | null
-                    id?: string
+                    id?: number
                     municipal_registration?: string | null
                     name: string
                     neighborhood?: string | null
@@ -95,13 +93,12 @@ export type Database = {
                     city?: string | null
                     city_hall_login?: string | null
                     city_hall_password?: string | null
-                    client_seq_id?: number | null
                     cnpj?: string
                     code?: string | null
                     complement?: string | null
                     created_at?: string
                     email?: string | null
-                    id?: string
+                    id?: number
                     municipal_registration?: string | null
                     name?: string
                     neighborhood?: string | null
@@ -122,7 +119,7 @@ export type Database = {
             documents: {
                 Row: {
                     category: string
-                    company_id: string | null
+                    company_id: number | null
                     created_at: string
                     file_url: string | null
                     id: string
@@ -133,7 +130,7 @@ export type Database = {
                 }
                 Insert: {
                     category: string
-                    company_id?: string | null
+                    company_id?: number | null
                     created_at?: string
                     file_url?: string | null
                     id?: string
@@ -144,7 +141,7 @@ export type Database = {
                 }
                 Update: {
                     category?: string
-                    company_id?: string | null
+                    company_id?: number | null
                     created_at?: string
                     file_url?: string | null
                     id?: string
@@ -165,7 +162,7 @@ export type Database = {
             }
             financial_entries: {
                 Row: {
-                    company_id: string
+                    company_id: number
                     created_at: string
                     description: string | null
                     document_number: string | null
@@ -180,7 +177,7 @@ export type Database = {
                     type: string
                 }
                 Insert: {
-                    company_id: string
+                    company_id: number
                     created_at?: string
                     description?: string | null
                     document_number?: string | null
@@ -195,7 +192,7 @@ export type Database = {
                     type: string
                 }
                 Update: {
-                    company_id?: string
+                    company_id?: number
                     created_at?: string
                     description?: string | null
                     document_number?: string | null
@@ -229,7 +226,7 @@ export type Database = {
             inventory: {
                 Row: {
                     code: string | null
-                    company_id: string
+                    company_id: number
                     created_at: string
                     current_stock: number | null
                     description: string | null
@@ -240,7 +237,7 @@ export type Database = {
                 }
                 Insert: {
                     code?: string | null
-                    company_id: string
+                    company_id: number
                     created_at?: string
                     current_stock?: number | null
                     description?: string | null
@@ -251,7 +248,7 @@ export type Database = {
                 }
                 Update: {
                     code?: string | null
-                    company_id?: string
+                    company_id?: number
                     created_at?: string
                     current_stock?: number | null
                     description?: string | null
@@ -272,7 +269,7 @@ export type Database = {
             }
             movements: {
                 Row: {
-                    company_id: string
+                    company_id: number
                     created_at: string
                     id: string
                     month: string
@@ -280,7 +277,7 @@ export type Database = {
                     year: string
                 }
                 Insert: {
-                    company_id: string
+                    company_id: number
                     created_at?: string
                     id?: string
                     month: string
@@ -288,7 +285,7 @@ export type Database = {
                     year: string
                 }
                 Update: {
-                    company_id?: string
+                    company_id?: number
                     created_at?: string
                     id?: string
                     month?: string
@@ -308,7 +305,7 @@ export type Database = {
             partners: {
                 Row: {
                     city: string | null
-                    company_id: string
+                    company_id: number
                     complement: string | null
                     created_at: string
                     document: string
@@ -326,7 +323,7 @@ export type Database = {
                 }
                 Insert: {
                     city?: string | null
-                    company_id: string
+                    company_id: number
                     complement?: string | null
                     created_at?: string
                     document: string
@@ -344,7 +341,7 @@ export type Database = {
                 }
                 Update: {
                     city?: string | null
-                    company_id?: string
+                    company_id?: number
                     complement?: string | null
                     created_at?: string
                     document?: string
@@ -372,21 +369,21 @@ export type Database = {
             }
             profiles: {
                 Row: {
-                    company_id: string | null
+                    company_id: number | null
                     created_at: string
                     id: string
                     name: string | null
                     role: string | null
                 }
                 Insert: {
-                    company_id?: string | null
+                    company_id?: number | null
                     created_at?: string
                     id: string
                     name?: string | null
                     role?: string | null
                 }
                 Update: {
-                    company_id?: string | null
+                    company_id?: number | null
                     created_at?: string
                     id?: string
                     name?: string | null
@@ -459,7 +456,7 @@ export type Database = {
             sales: {
                 Row: {
                     additional_info: string | null
-                    company_id: string
+                    company_id: number
                     created_at: string
                     date: string | null
                     freight_type: string | null
@@ -471,7 +468,7 @@ export type Database = {
                 }
                 Insert: {
                     additional_info?: string | null
-                    company_id: string
+                    company_id: number
                     created_at?: string
                     date?: string | null
                     freight_type?: string | null
@@ -483,7 +480,7 @@ export type Database = {
                 }
                 Update: {
                     additional_info?: string | null
-                    company_id?: string
+                    company_id?: number
                     created_at?: string
                     date?: string | null
                     freight_type?: string | null

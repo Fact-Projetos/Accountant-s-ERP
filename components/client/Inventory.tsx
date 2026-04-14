@@ -122,7 +122,7 @@ interface EntryInvoiceForm {
 }
 
 interface InventoryProps {
-  companyId?: string;
+  companyId?: number;
 }
 
 const Inventory: React.FC<InventoryProps> = ({ companyId }) => {

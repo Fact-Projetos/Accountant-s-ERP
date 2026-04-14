@@ -114,7 +114,7 @@ import { supabase } from '../../services/supabase';
 // ... other imports ...
 
 interface SalesProps {
-  companyId?: string | null;
+  companyId?: number | null;
 }
 
 const Sales: React.FC<SalesProps> = ({ companyId }) => {

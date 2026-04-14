@@ -20,18 +20,18 @@ interface Document {
 }
 
 interface DocumentsProps {
-    companyIdOverride?: string | null;
+    companyIdOverride?: number | null;
     roleOverride?: 'Contador' | 'Cliente';
 }
 
 const Documents: React.FC<DocumentsProps> = ({ companyIdOverride, roleOverride }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
-    const [selectedCompanyId, setSelectedCompanyId] = useState<string>('Todos');
+    const [selectedCompanyId, setSelectedCompanyId] = useState<number | 'Todos'>('Todos');
     const [isUploading, setIsUploading] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [userRole, setUserRole] = useState<'Contador' | 'Cliente'>('Cliente');
-    const [userCompanyId, setUserCompanyId] = useState<string | null>(null);
+    const [userCompanyId, setUserCompanyId] = useState<number | null>(null);
     const [companies, setCompanies] = useState<Partial<Client>[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [documents, setDocuments] = useState<Document[]>([]);
@@ -213,7 +213,7 @@ const Documents: React.FC<DocumentsProps> = ({ companyIdOverride, roleOverride }
                             <select
                                 className="w-full bg-slate-50 border border-slate-200 text-slate-600 py-2 px-4 rounded-xl text-sm font-medium focus:border-slate-400 outline-none transition-all"
                                 value={selectedCompanyId}
-                                onChange={(e) => setSelectedCompanyId(e.target.value)}
+                                onChange={(e) => setSelectedCompanyId(e.target.value === 'Todos' ? 'Todos' : Number(e.target.value))}
                             >
                                 <option value="Todos">Todos os Clientes</option>
                                 {companies.map(c => (

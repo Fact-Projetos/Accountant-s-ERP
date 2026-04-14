@@ -6,7 +6,7 @@ import {
 import { supabase } from '../../services/supabase';
 
 interface MyCompanyProps {
-  companyId?: string | null;
+  companyId?: number | null;
 }
 
 const InfoRow = ({ icon: Icon, label, value, highlight, warning }: {
