@@ -85,6 +85,50 @@ function getMonthIndex(monthName: string): number {
   return idx >= 0 ? idx : new Date().getMonth();
 }
 
+function SearchableSelect({ value, onChange, options, placeholder }: { value: string, onChange: (val: string) => void, options: {id: string, name: string}[], placeholder: string }) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  
+  const selectedName = options.find(o => String(o.id) === String(value))?.name || '';
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const filtered = options.filter(o => o.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="relative flex-1 min-w-[200px]" ref={wrapperRef}>
+      <input
+        type="text"
+        className="w-full bg-slate-50 border border-slate-200 text-slate-700 py-1 px-3 rounded-md text-[11px] font-medium focus:outline-none focus:border-slate-400 transition-all cursor-text placeholder:text-slate-400"
+        placeholder={placeholder}
+        value={open ? search : selectedName}
+        onChange={e => { setSearch(e.target.value); setOpen(true); }}
+        onFocus={() => { setOpen(true); setSearch(''); }}
+      />
+      {open && (
+        <ul className="absolute z-[999] w-full bg-white border border-slate-200 mt-1 max-h-60 overflow-y-auto rounded-md shadow-xl top-full left-0 list-none p-0 text-left">
+          <li className="px-3 py-2 text-[11px] font-bold text-slate-500 hover:bg-slate-50 cursor-pointer border-b border-slate-100" onClick={() => { onChange(''); setOpen(false); }}>Todos</li>
+          {filtered.map(o => (
+            <li key={o.id} className="px-3 py-2 text-[11px] font-medium text-slate-700 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-0 truncate" onClick={() => { onChange(String(o.id)); setOpen(false); }}>
+              {o.name}
+            </li>
+          ))}
+          {filtered.length === 0 && <li className="px-3 py-2 text-[11px] text-slate-400 italic">Nenhum cliente encontrado</li>}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 const Movements: React.FC<{
   initialClients?: Client[],
   onClientsUpdate?: (data: Client[]) => void,
@@ -868,7 +912,15 @@ const Movements: React.FC<{
           <p className="text-slate-500 text-sm">Gerencie competencias, verifique status e acesse documentos.</p>
         </div>
         <div className="flex items-center gap-2">
-          {isRefreshing && <RefreshCw className="w-4 h-4 text-slate-400 animate-spin" />}
+          {/* Botão de atualização explícito para forçar o recarregamento de empresas apagadas */}
+          <button 
+            onClick={() => { fetchClients(); fetchMovements(); }} 
+            className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors" 
+            title="Atualizar Dados"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+          
           {/* Batch Prefeitura Button */}
           {selectedIds.size > 0 && (
             <button
@@ -889,25 +941,21 @@ const Movements: React.FC<{
         <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col transition-all duration-300 min-h-0 ${showAutomationPanel ? 'flex-1' : 'w-full'}`}>
 
           {/* Compact Filter Fieldset */}
-          <div className="border-b border-slate-200 px-4 py-2.5 flex-shrink-0">
+          <div className="border-b border-slate-200 px-4 py-2.5 flex-shrink-0 z-[50]">
             <fieldset className="border border-slate-200 rounded-lg px-3 py-2 relative">
               <legend className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1.5 select-none flex items-center gap-1">
                 <Filter className="w-3 h-3" />
                 Filtro de Pesquisa
               </legend>
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
+                <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
                   <label className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">Cliente</label>
-                  <select
-                    className="flex-1 min-w-0 appearance-none bg-slate-50 border border-slate-200 text-slate-700 py-1 px-2 rounded-md text-[11px] font-medium focus:outline-none focus:border-slate-400 transition-all"
+                  <SearchableSelect
                     value={filterClient}
-                    onChange={(e) => setFilterClient(e.target.value)}
-                  >
-                    <option value="">Todos</option>
-                    {clients.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFilterClient(val)}
+                    options={clients.map(c => ({ id: String(c.id), name: c.name || '' }))}
+                    placeholder="Pesquisar..."
+                  />
                 </div>
                 <div className="flex items-center gap-1.5 min-w-[130px]">
                   <label className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">Prefeitura</label>
