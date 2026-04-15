@@ -7,7 +7,7 @@ import {
 
 // ─── Interfaces ────────────────────────────────────────────────
 interface Company {
-    id: string;
+    id: number;
     client_seq_id: number;
     code: string;
     name: string;
@@ -29,7 +29,7 @@ interface FinancialGroup {
 
 interface FinancialRecord {
     id?: string;
-    company_id: string;
+    company_id: number;
     year: number;
     month: number;
     monthly_fee: number;
@@ -50,7 +50,7 @@ interface ServiceType {
 
 interface ExtraService {
     id?: string;
-    company_id: string;
+    company_id: number;
     year: number;
     month: number;
     service_type_id: string | null;
@@ -257,7 +257,7 @@ const AccountantFinancial: React.FC = () => {
         } catch (err: any) { alert(err.message); }
     };
 
-    const toggleCompanyGroup = async (companyId: string, groupId: string | null) => {
+    const toggleCompanyGroup = async (companyId: number, groupId: string | null) => {
         try {
             const { error } = await supabase.from('companies').update({ financial_group_id: groupId }).eq('id', companyId);
             if (error) throw error;
