@@ -200,7 +200,6 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
 
         const transformed: Client[] = sorted.map((item: any) => ({
           id: item.id,
-          clientSeqId: item.client_seq_id || 0,
           code: item.code || '',
           name: item.name,
           tradeName: item.trade_name || '',
@@ -259,7 +258,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
     const nameMatch = c.name?.toLowerCase().includes(search) ?? false;
     const cnpjMatch = c.cnpj?.includes(search) ?? false;
     const codeMatch = c.code?.toLowerCase().includes(search) ?? false;
-    const idMatch = String(c.clientSeqId || '').includes(search);
+    const idMatch = String(c.id || '').includes(search);
     return nameMatch || cnpjMatch || codeMatch || idMatch;
   }).sort((a, b) => {
     const codeA = String(a.code || '').replace(/-/g, '').trim();
@@ -387,27 +386,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
       const formattedCnpj = formatCNPJ(formData.cnpj);
       const formattedCep = formData.zipCode ? formatCEP(formData.zipCode) : '';
 
-      // Auto-gerar client_seq_id para novos registros
-      let seqId = formData.clientSeqId;
-      if (!formData.id) {
-        // Find the absolute maximum ID directly from the database to prevent overlapping or missing values
-        const { data: maxIdData, error: maxIdError } = await supabase
-          .from('companies')
-          .select('client_seq_id')
-          .order('client_seq_id', { ascending: false })
-          .limit(1)
-          .single();
-
-        if (maxIdError && maxIdError.code !== 'PGRST116') { // PGRST116 is 'Results contain 0 rows'
-          console.error("Erro ao buscar o ID máximo:", maxIdError);
-        }
-        
-        const lastSeqId = maxIdData?.client_seq_id || 0;
-        seqId = lastSeqId + 1;
-      }
-
       const companyData: Record<string, any> = {
-        client_seq_id: seqId,
         name: formData.name,
         trade_name: formData.tradeName,
         cnpj: formattedCnpj,
@@ -556,8 +535,8 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
             <div className="grid grid-cols-12 border-b border-slate-200">
               <InputField
                 label="Id"
-                name="clientSeqId"
-                value={formData.id ? String(formData.clientSeqId || '') : 'Auto'}
+                name="id"
+                value={formData.id ? String(formData.id) : 'Auto'}
                 onChange={handleInputChange}
                 readOnly={true}
                 className="col-span-1"
@@ -1074,7 +1053,7 @@ const Clients: React.FC<ClientsProps> = ({ onImpersonate, initialData, onDataUpd
                       {/* Id (sequencial da grade) */}
                       {!hiddenColumns.includes('id_seq') && (
                         <td className="px-2 py-1.5 border-r border-slate-100">
-                          <span className="text-[11px] font-mono font-bold text-slate-600">{client.clientSeqId ? String(client.clientSeqId).padStart(3, '0') : '---'}</span>
+                          <span className="text-[11px] font-mono font-bold text-slate-600">{client.id ? String(client.id).padStart(3, '0') : '---'}</span>
                         </td>
                       )}
                       {/* Sistema (antigo Código) */}

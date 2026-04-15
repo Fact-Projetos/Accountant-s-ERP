@@ -19,6 +19,7 @@ interface Company {
     created_at?: string;
     financial_group_id?: string | null;
     responsibleName?: string;
+    temp_seq_id?: number;
 }
 
 interface FinancialGroup {
@@ -192,7 +193,6 @@ const AccountantFinancial: React.FC = () => {
             // Cast and ensure types
             const mapped: Company[] = sorted.map((c: any, idx: number) => ({
                 id: c.id,
-                client_seq_id: c.client_seq_id || 0,
                 code: c.code || '',
                 name: c.name || 'Sem Nome',
                 status: c.status || 'Ativo',
@@ -517,7 +517,7 @@ const AccountantFinancial: React.FC = () => {
                         <button onClick={() => { setSelectedCompany(null); setEditingMonth(null); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ArrowLeft className="w-5 h-5" /></button>
                         <div>
                             <h2 className="text-xl font-serif font-bold text-slate-800">{selectedCompany.name}</h2>
-                            <p className="text-xs text-slate-500 font-bold">Cód: {selectedCompany.client_seq_id ? String(selectedCompany.client_seq_id).padStart(3, '0') : '—'} • Ano: {selectedYear}</p>
+                            <p className="text-xs text-slate-500 font-bold">Cód: {selectedCompany.id ? String(selectedCompany.id).padStart(3, '0') : '—'} • Ano: {selectedYear}</p>
                         </div>
                     </div>
                 </div>
